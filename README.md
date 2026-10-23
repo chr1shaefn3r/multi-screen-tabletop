@@ -67,6 +67,20 @@ finds it in the panel too). It shows every step live: the network addresses each
 connection check between the two devices, and a diagnosis if it fails. **Copy** puts the log on the clipboard.
 Compare the player's log with the game master's: both sides of a join are logged.
 
+The server logs (Vercel → project → **Logs**) show the server's part of every join, one line per request:
+
+```
+[tiletop] join/offer code=K7RX2M from=#3fa2 → 200 in 41ms | stored offer peer=UhSh3x… (1 waiting for the game master), offer has 2 address(es): host udp ×1 (mDNS), srflx udp ×1
+[tiletop] host/poll code=K7RX2M from=#3fa2 → 200 in 12ms | handed offer peer=UhSh3x… to the game master (it waited 1.3s)
+[tiletop] host/answer code=K7RX2M from=#3fa2 → 200 in 9ms | stored answer for peer=UhSh3x…, answer has 2 address(es): …
+[tiletop] join/answer code=K7RX2M from=#3fa2 → 200 in 8ms | device picked up the answer for peer=UhSh3x… Server part done, the devices now connect directly.
+```
+
+`from=` is an anonymous tag of the IP address (devices on the same Wi-Fi share one). Errors are logged as warnings
+with their reason. Routine "nothing new" polls are hidden; set the environment variable `LOG_LEVEL=debug` to see them.
+If all four lines appear but the devices still don't connect, the problem is the direct connection between
+the devices, not the server.
+
 The usual cause is a Wi-Fi network that doesn't let devices talk to each other (guest networks, "AP/client
 isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVERS`.
 
