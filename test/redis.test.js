@@ -43,12 +43,12 @@ test('join handshake through REDIS_URL', { skip: !hasRedis && 'redis-server not 
   assert.equal((await call(join, { action: 'check', code: 'ABCDEF' })).status, 404);
 
   // survives a dropped connection
-  globalThis.__tiletopRedis.conn.socket.destroy();
+  globalThis.__tiletopRedis.client.destroy();
   assert.equal((await call(join, { action: 'check', code })).status, 200);
 });
 
 test('wrong Redis password gives a clear error', { skip: !hasRedis && 'redis-server not installed' }, async () => {
-  const { RedisTcpStore } = await import('../lib/redis-tcp.js');
-  const bad = new RedisTcpStore(`redis://default:wrong@127.0.0.1:${port}`);
-  await assert.rejects(bad.cmd('GET', 'x'), /Redis error/);
+  const { RedisStore } = await import('../lib/store.js');
+  const bad = new RedisStore(`redis://default:wrong@127.0.0.1:${port}`);
+  await assert.rejects(bad.cmd('GET', 'x'), /WRONGPASS|invalid/i);
 });

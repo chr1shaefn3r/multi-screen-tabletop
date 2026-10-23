@@ -10,5 +10,8 @@
   },
   "engines": {
     "node": "24.x"
+  },
+  "dependencies": {
+    "redis": "^6.3.0"
   }
 }

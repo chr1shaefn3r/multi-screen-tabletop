@@ -34,8 +34,7 @@ The game master's device is the "server" of the game: it holds the game state an
 
 1. Import this GitHub repository in Vercel (**Add New → Project**). No framework, no build command needed.
 2. In the project, open **Storage → Create Database**, pick a Redis provider with a free plan (e.g. Redis or
-   Upstash for Redis) and connect it to the project. This sets the `REDIS_URL` variable
-   (Upstash's `UPSTASH_REDIS_REST_URL`/`_TOKEN` or `KV_REST_API_URL`/`_TOKEN` variables work too).
+   Upstash for Redis) and connect it to the project. This sets the `REDIS_URL` variable.
 3. In **Settings → Environment Variables** add `HOST_SECRET` with a long password of your choice.
 4. Redeploy, because new environment variables only take effect in a new deployment. Open the site, choose "I'm the game master", enter the password.
 
@@ -53,11 +52,12 @@ Optional: `ICE_SERVERS` (JSON) to add a TURN server if devices can't connect dir
 ## Run locally
 
 ```bash
+npm install
 npm run dev          # http://localhost:3000, host password "devsecret"
 npm test
 ```
 
-Requires Node.js 24. No dependencies to install. Locally an in-memory store replaces Redis. To try it with real phones,
+Requires Node.js 24. Without `REDIS_URL`, an in-memory store replaces Redis. To try it with real phones,
 open `http://<your-computer-ip>:3000` on devices in the same Wi-Fi.
 
 ## Tips and limits
@@ -74,7 +74,7 @@ open `http://<your-computer-ip>:3000` on devices in the same Wi-Fi.
 | Path | What it does |
 | --- | --- |
 | `api/host.js`, `api/join.js` | Vercel functions for the join handshake (password check, rate limits) |
-| `lib/` | Small Redis clients (`REDIS_URL` or Upstash REST) with an in-memory fallback, HTTP helpers |
+| `lib/` | Redis access ([node-redis](https://github.com/redis/node-redis)) with an in-memory fallback, HTTP helpers |
 | `public/js/core.js` | Game master's authoritative state: devices, their position on the table, pieces |
 | `public/js/screen.js` | Draws one device's part of the table and handles touch (align gestures, dragging) |
 | `public/js/layout.js` | Layout editor on the game master's device |
