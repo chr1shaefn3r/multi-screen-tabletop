@@ -1,11 +1,10 @@
 // Runs on the game master's device and owns the truth: which screens exist,
 // where they lie on the table, and the game state. Every device (including the
 // game master's own screen) talks to it through a "transport" with send()/close().
-import { bounds, corners, sanitizeView } from './geom.js';
-import { setupGame, extraPiece } from './games.js';
+import { bounds, corners, pointInPoly, sanitizeView } from './geom.js';
+import { setupChess, dropPiece } from './games.js';
 
 const COLORS = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#0aa5c0', '#f032e6', '#7a9a01', '#9a6324', '#469990'];
-const IMG_CHUNK = 16000;
 
 export class HostCore {
   constructor() {
@@ -13,9 +12,8 @@ export class HostCore {
     this.nextNum = 1;
     this.mode = 'layout';
     this.state = { board: { type: 'none' }, pieces: {} };
-    this.image = null; // { id, data } – the current map image, sent to devices in chunks
     this.z = 1;
-    this.lastTap = new Map();
+    this.grabbedFrom = new Map(); // piece id -> where it was picked up, to undo invalid moves
     this.listeners = new Set();
   }
 
@@ -35,6 +33,12 @@ export class HostCore {
   union(list = this.connected()) {
     const pts = list.filter((d) => d.view && d.w).flatMap((d) => corners(d.view, d.w, d.h));
     return bounds(pts.length ? pts : [[0, 0], [100, 100]]);
+  }
+
+  // Is the circle (x, y, r) fully visible on one of the connected screens?
+  onOneScreen(x, y, r) {
+    const pts = [[x - r, y], [x + r, y], [x, y - r], [x, y + r]];
+    return this.connected().some((d) => d.view && d.w && pts.every(([px, py]) => pointInPoly(px, py, corners(d.view, d.w, d.h))));
   }
 
   center() {
@@ -63,7 +67,6 @@ export class HostCore {
       center: this.center(),
       state: this.state,
     });
-    if (this.image && this.state.board.imageId === this.image.id) this.sendImage(d);
     this.emit();
     return id;
   }
@@ -137,6 +140,7 @@ export class HostCore {
       case 'grab':
         if (!p || this.mode !== 'play') break;
         if (!p.heldBy || p.heldBy === id || !this.devices.get(p.heldBy)?.connected) {
+          if (p.heldBy !== id) this.grabbedFrom.set(p.id, { x: p.x, y: p.y, captured: p.captured, size: p.size });
           p.heldBy = id;
           p.z = ++this.z;
           this.broadcast({ t: 'piece', p });
@@ -153,50 +157,19 @@ export class HostCore {
         }
         const x = +m.x, y = +m.y;
         if (!Number.isFinite(x) || !Number.isFinite(y)) break;
-        p.x = x;
-        p.y = y;
-        if (m.t === 'drop') {
-          p.heldBy = null;
-          this.snap(p);
-          this.broadcast({ t: 'piece', p });
-          this.emit();
-        } else {
+        if (m.t === 'drag') {
+          Object.assign(p, { x, y });
           this.broadcast({ t: 'piece', p }, id);
+          break;
         }
+        const from = this.grabbedFrom.get(p.id) || { x: p.x, y: p.y, captured: p.captured, size: p.size };
+        this.grabbedFrom.delete(p.id);
+        Object.assign(p, { x, y, heldBy: null });
+        for (const q of dropPiece(this.state, p, from, (cx, cy, r) => this.onOneScreen(cx, cy, r))) this.broadcast({ t: 'piece', p: q });
+        this.emit();
         break;
       }
-      case 'tap':
-        if (p && this.mode === 'play') this.tap(p, id);
-        break;
     }
-  }
-
-  tap(p, id) {
-    if (p.heldBy === id) p.heldBy = null;
-    if (p.kind === 'die') {
-      p.value = 1 + (crypto.getRandomValues(new Uint32Array(1))[0] % p.sides);
-      p.rollSeq = (p.rollSeq || 0) + 1;
-    } else if (p.kind === 'disc') {
-      // double tap crowns / uncrowns a checkers piece
-      const now = Date.now();
-      if (now - (this.lastTap.get(p.id) || 0) < 450) {
-        p.king = !p.king;
-        this.lastTap.delete(p.id);
-      } else {
-        this.lastTap.set(p.id, now);
-      }
-    }
-    this.broadcast({ t: 'piece', p });
-    this.emit();
-  }
-
-  snap(p) {
-    const b = this.state.board;
-    if (!b.snap || !b.cell || p.kind === 'die') return;
-    const c = (p.x - b.x) / b.cell, r = (p.y - b.y) / b.cell;
-    if (c < 0 || r < 0 || c >= b.cols || r >= b.rows) return; // dropped beside the board: leave it there
-    p.x = b.x + (Math.floor(c) + 0.5) * b.cell;
-    p.y = b.y + (Math.floor(r) + 0.5) * b.cell;
   }
 
   setMode(mode) {
@@ -214,43 +187,13 @@ export class HostCore {
     this.emit();
   }
 
-  newGame(type, opts) {
-    this.state = setupGame(type, this.union(), opts);
+  // A fresh chess game, centred on the screens that are connected right now.
+  newGame() {
+    this.state = setupChess(this.union());
     this.z = 1;
+    this.grabbedFrom.clear();
     this.broadcast({ t: 'state', state: this.state });
     this.emit();
-  }
-
-  addPiece(kind) {
-    const count = Object.values(this.state.pieces).filter((p) => p.kind === 'token').length;
-    const p = extraPiece(kind, this.union(), count);
-    p.z = ++this.z;
-    this.state.pieces[p.id] = p;
-    this.broadcast({ t: 'piece', p });
-    this.emit();
-  }
-
-  clearExtras() {
-    for (const [id, p] of Object.entries(this.state.pieces)) {
-      if (p.kind === 'die' || p.kind === 'token') {
-        delete this.state.pieces[id];
-        this.broadcast({ t: 'remove', id });
-      }
-    }
-    this.emit();
-  }
-
-  setImage(data, w, h) {
-    const id = 'img' + Date.now().toString(36);
-    this.image = { id, data };
-    for (const d of this.connected()) this.sendImage(d);
-    this.newGame('image', { imageId: id, aspect: w / h });
-  }
-
-  sendImage(d) {
-    const { id, data } = this.image;
-    const n = Math.ceil(data.length / IMG_CHUNK);
-    for (let i = 0; i < n; i++) this.send(d, { t: 'img', id, i, n, d: data.slice(i * IMG_CHUNK, (i + 1) * IMG_CHUNK) });
   }
 
   // Saved in sessionStorage so a reload of the game master's page keeps the table.
@@ -267,7 +210,7 @@ export class HostCore {
     if (!s || !Array.isArray(s.devices)) return;
     this.nextNum = s.nextNum || 1;
     this.mode = s.mode || 'layout';
-    if (s.state?.board?.type !== 'image') this.state = s.state || this.state; // map images are not saved
+    if (['chess', 'none'].includes(s.state?.board?.type)) this.state = s.state;
     for (const d of s.devices) this.devices.set(d.id, { ...d, connected: false, transport: null });
     this.z = Math.max(1, ...Object.values(this.state.pieces).map((p) => p.z || 0));
   }

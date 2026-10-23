@@ -15,8 +15,6 @@ export class Screen {
     this.mode = 'wait';
     this.center = [0, 0];
     this.state = { board: { type: 'none' }, pieces: {} };
-    this.images = new Map();
-    this.imgParts = new Map();
     this.drags = new Map(); // pointerId -> piece drag
     this.pending = new Map(); // piece id -> [x, y] waiting to be sent
     this.pts = new Map(); // pointerId -> [x, y] for align gestures
@@ -25,7 +23,6 @@ export class Screen {
     this.allowResize = false; // two-finger resizing in the align step, off unless switched on
     this.cardMode = false;
     this.editor = null; // layout editor, only on the game master's device
-    this.rolls = new Map();
     this.dirty = true;
     this.onMode = null;
     this.lastViewSend = 0;
@@ -35,9 +32,9 @@ export class Screen {
     addEventListener('resize', () => this.resize());
     for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) canvas.addEventListener(t, (e) => this.pointer(e));
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    const loop = (now) => {
+    const loop = () => {
       requestAnimationFrame(loop);
-      this.frame(now);
+      this.frame();
     };
     requestAnimationFrame(loop);
   }
@@ -86,7 +83,6 @@ export class Screen {
         this.state = m.state;
         this.drags.clear();
         this.pending.clear();
-        this.rolls.clear();
         break;
       case 'piece': {
         const p = m.p;
@@ -101,54 +97,23 @@ export class Screen {
             p.y = old.y;
           }
         }
-        if (p.kind === 'die' && old && p.rollSeq !== old.rollSeq) this.rolls.set(p.id, performance.now());
         this.state.pieces[p.id] = p;
-        break;
-      }
-      case 'remove':
-        delete this.state.pieces[m.id];
-        break;
-      case 'img': {
-        let e = this.imgParts.get(m.id);
-        if (!e) this.imgParts.set(m.id, (e = { parts: new Array(m.n), got: 0 }));
-        if (e.parts[m.i] === undefined) {
-          e.parts[m.i] = m.d;
-          e.got++;
-        }
-        if (e.got === m.n) {
-          this.imgParts.delete(m.id);
-          const src = e.parts.join('');
-          if (src.startsWith('data:image/')) {
-            const img = new Image();
-            img.onload = () => (this.dirty = true);
-            img.src = src;
-            this.images = new Map([[m.id, img]]);
-          }
-        }
         break;
       }
     }
     this.dirty = true;
   }
 
-  frame(now) {
+  frame() {
     for (const [id, [x, y]] of this.pending) this.send({ t: 'drag', id, x, y });
     this.pending.clear();
-    let animating = false;
-    for (const [id, t] of this.rolls) {
-      if (now - t < 750) animating = true;
-      else {
-        this.rolls.delete(id);
-        this.dirty = true;
-      }
-    }
     if (this.editor?.dirty) this.dirty = true;
-    if (!this.dirty && !animating) return;
+    if (!this.dirty) return;
     this.dirty = false;
-    this.draw(now);
+    this.draw();
   }
 
-  draw(now) {
+  draw() {
     const { ctx, w, h, view: v } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     if (this.mode === 'layout' && this.editor) return this.editor.draw(ctx, w, h);
@@ -165,9 +130,9 @@ export class Screen {
     if (align) {
       this.drawPattern(ctx, px);
     } else {
-      drawBoard(ctx, this.state.board, this.images, px);
+      drawBoard(ctx, this.state.board, px);
       const list = Object.values(this.state.pieces).sort((a, b) => a.z - b.z);
-      for (const p of list) drawPiece(ctx, p, now, this.rolls.get(p.id));
+      for (const p of list) drawPiece(ctx, p);
     }
     ctx.restore();
     if (align) this.drawAlignHud(ctx, w, h);
@@ -364,7 +329,7 @@ export class Screen {
     }
   }
 
-  // --- Step 3: play. Drag pieces, tap dice.
+  // --- Step 3: play. Drag pieces; dropping is checked by the game master (captures etc.).
   playPointer(e) {
     const id = e.pointerId;
     if (e.type === 'pointerdown') {
@@ -373,7 +338,7 @@ export class Screen {
       if (!p || [...this.drags.values()].some((d) => d.id === p.id)) return;
       if (p.heldBy && p.heldBy !== this.me.id) return;
       this.capture(e);
-      this.drags.set(id, { pointerId: id, id: p.id, offX: p.x - wx, offY: p.y - wy, sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false });
+      this.drags.set(id, { pointerId: id, id: p.id, offX: p.x - wx, offY: p.y - wy, sx: e.clientX, sy: e.clientY, moved: false });
       p.z = Math.max(0, ...Object.values(this.state.pieces).map((q) => q.z || 0)) + 1;
       this.send({ t: 'grab', id: p.id });
     } else {
@@ -394,8 +359,7 @@ export class Screen {
       } else {
         this.drags.delete(id);
         this.pending.delete(p.id);
-        if (!d.moved && e.type === 'pointerup' && performance.now() - d.t0 < 450) this.send({ t: 'tap', id: p.id });
-        else this.send({ t: 'drop', id: p.id, x: p.x, y: p.y });
+        this.send({ t: 'drop', id: p.id, x: p.x, y: p.y });
       }
     }
     this.dirty = true;

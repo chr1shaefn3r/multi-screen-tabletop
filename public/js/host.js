@@ -3,7 +3,6 @@ import { post, sleep, accept, transport } from './net.js';
 import { HostCore } from './core.js';
 import { Screen } from './screen.js';
 import { LayoutEditor } from './layout.js';
-import { GAMES } from './games.js';
 import { log, logError, logIceServers, showDetails } from './diag.js';
 import { $, h, getDeviceId, deviceInfo, keepAwake, toggleFullscreen, setupHud, updateToolbar } from './ui.js';
 
@@ -58,7 +57,10 @@ export async function startHost(secret) {
   const host = { editor, setMode };
   screen.onMode = (m) => {
     updateToolbar(screen, host);
-    if (m === 'play' && core.state.board.type === 'none' && !Object.keys(core.state.pieces).length) openPanel();
+    if (m === 'play' && core.state.board.type === 'none') {
+      core.newGame(); // chess is the only game: start it right away
+      logGeometry('chess');
+    }
     renderPanel();
   };
   editor.onSelect = () => updateToolbar(screen, host);
@@ -188,32 +190,11 @@ export async function startHost(secret) {
     if (b.type !== 'none') log(`    board: ${r(b.x)}…${r(b.x + b.w)} × ${r(b.y)}…${r(b.y + b.h)}`);
   }
 
-  async function loadImage(file) {
-    if (!file) return;
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    try {
-      img.src = url;
-      await img.decode();
-      const k = Math.min(1, 2048 / Math.max(img.naturalWidth, img.naturalHeight));
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.naturalWidth * k);
-      c.height = Math.round(img.naturalHeight * k);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      core.setImage(c.toDataURL('image/jpeg', 0.85), c.width, c.height);
-      logGeometry('image map');
-      if (core.mode !== 'play') setMode('play');
-      panel.hidden = true;
-    } catch {
-      alert('Could not read this image.');
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  const startGame = (id) => {
-    core.newGame(id);
-    logGeometry(id);
+  const startGame = () => {
+    const playing = Object.keys(core.state.pieces).length > 0;
+    if (playing && !confirm('Start a new chess game? The current game is lost.')) return;
+    core.newGame();
+    logGeometry('chess');
     if (core.mode !== 'play') setMode('play');
     panel.hidden = true;
   };
@@ -230,20 +211,12 @@ export async function startHost(secret) {
     section(
       'Steps',
       h('div', { class: 'seg', id: 'modeSeg' }, ...[['layout', '1 · Layout'], ['align', '2 · Align'], ['play', '3 · Play']].map(([m, l]) => h('button', { 'data-mode': m, onclick: () => setMode(m) }, l))),
-      h('p', { class: 'muted' }, 'Layout: place the screens roughly. Align: drag each screen until the lines continue across the gaps. Play: pick a game.'),
+      h('p', { class: 'muted' }, 'Layout: place the screens roughly. Align: drag each screen until the lines continue across the gaps. Play: start a chess game.'),
     ),
     section(
-      'New game',
-      h(
-        'div',
-        { class: 'grid' },
-        ...GAMES.map(([id, label]) => action(label, () => startGame(id))),
-        h('label', { class: 'button' }, 'Image map…', h('input', { type: 'file', accept: 'image/*', hidden: true, onchange: (e) => loadImage(e.target.files[0]) })),
-      ),
-    ),
-    section(
-      'Add to the table',
-      h('div', { class: 'grid' }, action('+ d6', () => core.addPiece('d6')), action('+ d20', () => core.addPiece('d20')), action('+ Token', () => core.addPiece('token')), action('Remove dice & tokens', () => core.clearExtras())),
+      'Chess',
+      h('div', { class: 'grid' }, action('New chess game', startGame, 'primary')),
+      h('p', { class: 'muted' }, 'Drop a piece on an opposing piece to capture it. Captured black pieces go above the board, white ones below. Drag a captured piece back onto the board to undo.'),
     ),
     section('Session', h('div', { class: 'grid' }, action('Connection details', showDetails), action('Fullscreen', toggleFullscreen), action('End session', () => endSession(), 'danger'))),
   );

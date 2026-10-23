@@ -16,8 +16,10 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
    *Card size* lets you match a bank card outline to set the exact physical size of a screen.
    *Resize* allows changing the size with two fingers, *Rotate* allows small twists if a device lies slightly
    crooked. Both are off by default so a stray second finger can't change them.
-5. **Play** – pick Chess, Checkers, a battle map with a 1-inch grid, a free table with dice and tokens, or upload
-   an image as a map. Drag pieces, tap a die to roll it, double-tap a checkers piece to crown it.
+5. **Play** – a chess board appears in the middle of all screens. Drag pieces across screens; they snap to the
+   squares. Drop a piece on an opposing piece to capture it: captured black pieces line up above the board,
+   white ones below. A piece dropped off the board is removed the same way, and dragging a captured piece back
+   onto the board returns it to the game. Moves are not checked against the chess rules.
 
 ## How the devices connect
 
@@ -104,6 +106,6 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 | `public/js/core.js` | Game master's authoritative state: devices, their position on the table, pieces |
 | `public/js/screen.js` | Draws one device's part of the table and handles touch (align gestures, dragging) |
 | `public/js/layout.js` | Layout editor on the game master's device |
-| `public/js/games.js`, `draw.js` | Game setups and drawing of boards and pieces |
+| `public/js/games.js`, `draw.js` | Chess setup, captures, and drawing of the board and pieces |
 | `public/js/net.js` | WebRTC connection setup and API calls |
 | `public/js/diag.js` | Connection log and the "Connection details" screen |

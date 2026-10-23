@@ -1,7 +1,7 @@
 {
   "name": "Tiletop",
   "short_name": "Tiletop",
-  "description": "Put phones and tablets side by side and play tabletop games on one big shared screen.",
+  "description": "Put phones and tablets side by side and play chess on one big shared board.",
   "start_url": "/",
   "display": "fullscreen",
   "background_color": "#0b1020",
