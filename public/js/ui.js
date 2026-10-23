@@ -96,21 +96,31 @@ export function updateToolbar(screen, host) {
       btn('⟲ 90°', () => host.editor.rotate(-1)),
       btn('⟳ 90°', () => host.editor.rotate(1)),
       btn('In a row', () => host.editor.arrange()),
-      btn('Next: align →', () => host.setMode('align'), 'primary'),
+      btn('Done: align →', () => host.setMode('align'), 'primary'),
     ];
   } else if (screen.mode === 'align') {
+    const swipe = screen.alignTool === 'swipe';
     items = [
-      btn(screen.freeRotate ? 'Rotate: on' : 'Rotate: off', () => (screen.freeRotate = !screen.freeRotate)),
-      btn(screen.allowResize ? 'Resize: on' : 'Resize: off', () => {
-        screen.allowResize = !screen.allowResize;
-        screen.dirty = true;
-      }),
-      btn(screen.cardMode ? 'Card: done' : 'Card size', () => {
-        screen.cardMode = !screen.cardMode;
+      btn(swipe ? 'Tool: swipe' : 'Tool: drag', () => {
+        screen.alignTool = swipe ? 'drag' : 'swipe';
+        screen.cardMode = false;
         screen.dirty = true;
       }),
     ];
-    if (host) items.push(btn('← Layout', () => host.setMode('layout')), btn('Play →', () => host.setMode('play'), 'primary'));
+    if (!swipe) {
+      items.push(
+        btn(screen.freeRotate ? 'Rotate: on' : 'Rotate: off', () => (screen.freeRotate = !screen.freeRotate)),
+        btn(screen.allowResize ? 'Resize: on' : 'Resize: off', () => {
+          screen.allowResize = !screen.allowResize;
+          screen.dirty = true;
+        }),
+        btn(screen.cardMode ? 'Card: done' : 'Card size', () => {
+          screen.cardMode = !screen.cardMode;
+          screen.dirty = true;
+        }),
+      );
+    }
+    if (host) items.push(btn('Manual layout', () => host.setMode('layout')), btn('Play →', () => host.setMode('play'), 'primary'));
   }
   bar.replaceChildren(...items);
   bar.hidden = !items.length;

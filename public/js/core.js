@@ -3,6 +3,7 @@
 // game master's own screen) talks to it through a "transport" with send()/close().
 import { bounds, corners, pointInPoly, sanitizeView } from './geom.js';
 import { setupChess, dropPiece } from './games.js';
+import { SwipeAligner } from './swipe.js';
 
 const COLORS = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#0aa5c0', '#f032e6', '#7a9a01', '#9a6324', '#469990'];
 
@@ -10,11 +11,13 @@ export class HostCore {
   constructor() {
     this.devices = new Map();
     this.nextNum = 1;
-    this.mode = 'layout';
+    this.mode = 'align';
     this.state = { board: { type: 'none' }, pieces: {} };
     this.z = 1;
     this.grabbedFrom = new Map(); // piece id -> where it was picked up, to undo invalid moves
     this.listeners = new Set();
+    this.aligner = new SwipeAligner(this);
+    this.log = () => {}; // set by the game master's page to write into the connection log
   }
 
   on(fn) {
@@ -59,14 +62,16 @@ export class HostCore {
     Object.assign(d, { transport, connected: true, isHost, name: String(hello.name || 'Device').slice(0, 40) });
     this.setSize(d, hello.w, hello.h);
     if (!d.view) d.view = this.placeNew(d, hello.scale);
-    transport.send({
+    const welcome = {
       t: 'welcome',
       you: { id, num: d.num, color: d.color, name: d.name, isHost },
       view: d.view,
       mode: this.mode,
       center: this.center(),
       state: this.state,
-    });
+    };
+    transport.send(welcome);
+    transport.send({ t: 'status', text: this.aligner.status(id) });
     this.emit();
     return id;
   }
@@ -108,6 +113,7 @@ export class HostCore {
     if (!d || d.isHost) return;
     d.transport?.close?.();
     this.devices.delete(id);
+    for (const [child, par] of this.aligner.parent) if (par === id || child === id) this.aligner.movedByHand(child);
     this.emit();
   }
 
@@ -130,11 +136,22 @@ export class HostCore {
         this.emit();
         break;
       case 'view': {
+        // the device was dragged by hand in the align step
         const v = sanitizeView(m.view);
         if (v) {
           d.view = v;
+          this.aligner.movedByHand(id);
           this.emit();
         }
+        break;
+      }
+      case 'ping': // clock sync: the device compares its clock with ours
+        this.send(d, { t: 'pong', c: m.c, h: performance.now() });
+        break;
+      case 'stroke': {
+        if (this.mode !== 'align' || !Array.isArray(m.pts) || m.pts.length > 300) break;
+        const pts = m.pts.filter((q) => Array.isArray(q) && q.length === 3 && q.every(Number.isFinite));
+        this.deliver(this.aligner.add(id, pts));
         break;
       }
       case 'grab':
@@ -179,12 +196,29 @@ export class HostCore {
     this.emit();
   }
 
+  // A screen was placed by hand (layout editor).
   setView(id, view) {
+    this.aligner.movedByHand(id);
+    this.applyView(id, view);
+  }
+
+  applyView(id, view) {
     const d = this.devices.get(id);
     if (!d) return;
     d.view = view;
     this.send(d, { t: 'view', view });
     this.emit();
+  }
+
+  // Status texts and short notices for screens: [{ to: [ids], text, toast, status }]
+  deliver(msgs) {
+    for (const m of msgs || []) {
+      if (!m) continue;
+      for (const id of m.to) {
+        const d = this.devices.get(id);
+        if (d) this.send(d, { t: 'status', text: m.status || !m.toast ? this.aligner.status(id) : undefined, toast: m.toast ? m.text : undefined });
+      }
+    }
   }
 
   // A fresh chess game, centred on the screens that are connected right now.
@@ -209,7 +243,7 @@ export class HostCore {
   restore(s) {
     if (!s || !Array.isArray(s.devices)) return;
     this.nextNum = s.nextNum || 1;
-    this.mode = s.mode || 'layout';
+    this.mode = s.mode || 'align';
     if (['chess', 'none'].includes(s.state?.board?.type)) this.state = s.state;
     for (const d of s.devices) this.devices.set(d.id, { ...d, connected: false, transport: null });
     this.z = Math.max(1, ...Object.values(this.state.pieces).map((p) => p.z || 0));

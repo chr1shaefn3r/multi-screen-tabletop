@@ -1,4 +1,4 @@
-// Step 1 on the game master's screen: a bird's-eye view of all screens.
+// Manual layout on the game master's screen: a bird's-eye view of all screens.
 // Drag rectangles so they match how the devices lie on the table; edges snap together.
 import { corners, bounds, pointInPoly, rotV, toWorld, QUARTER } from './geom.js';
 
@@ -41,7 +41,7 @@ export class LayoutEditor {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.font = 'bold 18px system-ui, sans-serif';
-    ctx.fillText('Step 1 · Arrange the screens', w / 2, 72);
+    ctx.fillText('Manual layout', w / 2, 72);
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillStyle = '#aab';
     ctx.fillText('Drag the rectangles to match the table. Tap one, then rotate it below.', w / 2, 94, w - 24);

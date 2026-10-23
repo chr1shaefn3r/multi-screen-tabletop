@@ -2,6 +2,8 @@
 // Used by every device, including the game master's.
 import { toWorld, corners, bounds, pin, dist, mid, clamp } from './geom.js';
 import { drawBoard, drawPiece, hitTest } from './draw.js';
+import { EDGE_PX, MIN_SPEED } from './swipe.js';
+import { log } from './diag.js';
 
 const CARD = [85.6, 53.98]; // ISO/IEC 7810 ID-1 (bank card) in mm
 
@@ -22,6 +24,12 @@ export class Screen {
     this.freeRotate = false;
     this.allowResize = false; // two-finger resizing in the align step, off unless switched on
     this.cardMode = false;
+    this.alignTool = 'swipe'; // 'swipe' (automatic) or 'drag' (by hand)
+    this.stroke = null; // swipe being drawn
+    this.trail = null; // last swipe, shown briefly
+    this.toast = null; // { text, until }
+    this.alignStatus = '';
+    this.clockOffset = 0; // add to local timestamps to get the game master's clock
     this.editor = null; // layout editor, only on the game master's device
     this.dirty = true;
     this.onMode = null;
@@ -60,12 +68,14 @@ export class Screen {
     this.pts.clear();
     this.g0 = null;
     this.cardMode = false;
+    this.stroke = null;
     this.onMode?.(mode);
   }
 
   receive(m) {
     switch (m.t) {
       case 'welcome':
+        if (!this.me) this.syncClock();
         this.me = m.you;
         this.view = m.view;
         this.center = m.center;
@@ -74,6 +84,18 @@ export class Screen {
         break;
       case 'view':
         if (!this.pts.size) this.view = m.view;
+        break;
+      case 'pong': {
+        const now = performance.now(), rtt = now - m.c;
+        if (!this.bestSync || rtt <= this.bestSync.rtt) {
+          this.bestSync = { rtt, offset: m.h - (m.c + rtt / 2) };
+          this.clockOffset = this.bestSync.offset;
+        }
+        break;
+      }
+      case 'status':
+        if (m.text !== undefined) this.alignStatus = m.text;
+        if (m.toast) this.toast = { text: m.toast, until: performance.now() + 3500 };
         break;
       case 'mode':
         this.center = m.center;
@@ -104,7 +126,31 @@ export class Screen {
     this.dirty = true;
   }
 
+  // Estimate the difference between our clock and the game master's (needed to match swipes
+  // across screens). The ping with the shortest round trip gives the best estimate.
+  syncClock() {
+    let n = 0;
+    this.bestSync = null;
+    const ping = () => {
+      this.send({ t: 'ping', c: performance.now() });
+      if (++n < 12) setTimeout(ping, 150);
+      else setTimeout(() => this.bestSync && log(`Clock synced with the game master: offset ${this.bestSync.offset.toFixed(1)} ms, round trip ${this.bestSync.rtt.toFixed(1)} ms`), 500);
+    };
+    ping();
+    clearInterval(this.syncTimer);
+    this.syncTimer = setInterval(() => {
+      if (this.mode === 'align') {
+        n = 9; // a few more pings now and then to follow clock drift
+        ping();
+      }
+    }, 20000);
+  }
+
   frame() {
+    const now = performance.now();
+    if (this.trail && now > this.trail.until) this.trail = null;
+    if (this.toast && now > this.toast.until) this.toast = null;
+    if ((this.trail || this.toast) && this.mode === 'align') this.dirty = true;
     for (const [id, [x, y]] of this.pending) this.send({ t: 'drag', id, x, y });
     this.pending.clear();
     if (this.editor?.dirty) this.dirty = true;
@@ -227,6 +273,16 @@ export class Screen {
       ctx.fillText('and pinch until the size matches.', w / 2, h / 2 - ch / 2 - 20, w - 24);
       return;
     }
+    // the swipe just drawn
+    const tr = this.stroke?.pts || this.trail?.pts;
+    if (tr?.length > 1) {
+      ctx.beginPath();
+      tr.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = this.trail?.ok === false ? 'rgba(255,120,120,.8)' : 'rgba(120,230,255,.85)';
+      ctx.stroke();
+    }
     const me = this.me;
     ctx.beginPath();
     ctx.arc(w / 2, 34, 20, 0, Math.PI * 2);
@@ -238,13 +294,19 @@ export class Screen {
     // physical size this screen is assumed to have: should match the real screen
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillText(`this screen: ${Math.round(w / this.view.scale)} × ${Math.round(h / this.view.scale)} mm`, w / 2, 70, w - 24);
-    if (!this.pts.size) {
-      ctx.font = '14px system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(0,0,0,.6)';
-      ctx.fillRect(0, h / 2 - 30, w, 60);
-      ctx.fillStyle = '#fff';
-      ctx.fillText('Drag so the lines continue straight', w / 2, h / 2 - 10, w - 24);
-      ctx.fillText(this.allowResize ? 'into the neighbouring screens. Pinch to resize.' : 'into the neighbouring screens.', w / 2, h / 2 + 10, w - 24);
+    if (this.alignStatus) wrapText(ctx, this.alignStatus, w / 2, 94, w - 32, 17, '13px system-ui, sans-serif', '#cfe');
+    const busy = this.pts.size || this.stroke;
+    if (this.toast) {
+      box(ctx, w, h / 2, wrapText(ctx, this.toast.text, w / 2, 0, w - 40, 20, 'bold 15px system-ui, sans-serif', null).length);
+      wrapText(ctx, this.toast.text, w / 2, h / 2, w - 40, 20, 'bold 15px system-ui, sans-serif', '#fff', true);
+    } else if (!busy) {
+      const text = this.alignTool === 'swipe'
+        ? 'Swipe in one quick, straight line from this screen across the gap onto the next one. Twice per gap, near both ends, also matches the size.'
+        : this.allowResize
+          ? 'Drag so the lines continue straight into the neighbouring screens. Pinch to resize.'
+          : 'Drag so the lines continue straight into the neighbouring screens.';
+      box(ctx, w, h / 2, wrapText(ctx, text, w / 2, 0, w - 40, 19, '14px system-ui, sans-serif', null).length);
+      wrapText(ctx, text, w / 2, h / 2, w - 40, 19, '14px system-ui, sans-serif', '#fff', true);
     }
   }
 
@@ -262,8 +324,50 @@ export class Screen {
     else if (this.mode === 'play') this.playPointer(e);
   }
 
-  // --- Step 2: align. Pan with one finger, pinch with two (like a map).
+  // --- Align by swiping: record the stroke and send it to the game master, who matches
+  // strokes that leave one screen and enter the next.
+  swipePointer(e) {
+    const point = (ev) => [Math.round(ev.clientX * 10) / 10, Math.round(ev.clientY * 10) / 10, Math.round((ev.timeStamp + this.clockOffset) * 10) / 10];
+    if (e.type === 'pointerdown') {
+      if (this.stroke) return;
+      this.capture(e);
+      this.stroke = { id: e.pointerId, pts: [point(e)] };
+      this.toast = null;
+    } else if (!this.stroke || e.pointerId !== this.stroke.id) {
+      return;
+    } else if (e.type === 'pointermove') {
+      const list = e.getCoalescedEvents?.();
+      for (const ev of list?.length ? list : [e]) this.stroke.pts.push(point(ev));
+    } else {
+      if (e.type === 'pointerup') this.stroke.pts.push(point(e));
+      const pts = this.stroke.pts;
+      this.stroke = null;
+      this.finishStroke(pts);
+    }
+    this.dirty = true;
+  }
+
+  finishStroke(pts) {
+    if (pts.length < 3) return; // a tap
+    const [x0, y0, t0] = pts[0], [x1, y1, t1] = pts.at(-1);
+    const near = ([x, y]) => x < EDGE_PX || y < EDGE_PX || x > this.w - EDGE_PX || y > this.h - EDGE_PX;
+    const speed = Math.hypot(x1 - x0, y1 - y0) / Math.max(1, t1 - t0);
+    let problem = null;
+    if (!near(pts[0]) && !near(pts.at(-1))) problem = 'Swipe all the way across the edge onto the next screen.';
+    else if (speed < MIN_SPEED) problem = 'A bit faster, in one quick straight move.';
+    this.trail = { pts, until: performance.now() + 1200, ok: !problem };
+    if (problem) {
+      this.toast = { text: problem, until: performance.now() + 3000 };
+      return;
+    }
+    // keep the parts next to the edges in full detail, thin out the middle
+    const keep = pts.length <= 120 ? pts : [...pts.slice(0, 40), ...pts.slice(40, -40).filter((_, i, a) => i % Math.ceil(a.length / 40) === 0), ...pts.slice(-40)];
+    this.send({ t: 'stroke', pts: keep });
+  }
+
+  // --- Align by hand: pan with one finger, pinch with two (like a map).
   alignPointer(e) {
+    if (this.alignTool === 'swipe' && !this.cardMode) return this.swipePointer(e);
     const id = e.pointerId;
     if (e.type === 'pointerdown') {
       this.capture(e);
@@ -364,4 +468,35 @@ export class Screen {
     }
     this.dirty = true;
   }
+}
+
+// Draws text centred at x, wrapped to maxW, starting at y (or centred on y when `middle`).
+// With color null it only measures. Returns the lines.
+function wrapText(ctx, text, x, y, maxW, lineH, font, color, middle = false) {
+  ctx.font = font;
+  const lines = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    const test = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(test).width > maxW) {
+      lines.push(line);
+      line = word;
+    } else line = test;
+  }
+  if (line) lines.push(line);
+  if (color) {
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const top = middle ? y - ((lines.length - 1) * lineH) / 2 : y;
+    lines.forEach((l, i) => ctx.fillText(l, x, top + i * lineH));
+  }
+  return lines;
+}
+
+// Dark band behind `lines` lines of text centred on y.
+function box(ctx, w, y, lines) {
+  const hgt = lines * 20 + 24;
+  ctx.fillStyle = 'rgba(0,0,0,.65)';
+  ctx.fillRect(0, y - hgt / 2, w, hgt);
 }

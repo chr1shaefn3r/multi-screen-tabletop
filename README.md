@@ -7,16 +7,23 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
 
 1. **Game master** opens the site, enters the host password and gets a 6-character code (plus a QR code).
 2. **Players** open the site on their devices and join with the code. Every device shows a big number and colour.
-3. **Layout** – the game master's screen shows a rectangle for every device. Drag them so they match how the
-   devices lie on the table (edges snap together) and rotate the ones that lie sideways or upside down.
-4. **Align** – every screen shows the same pattern of lines and circles. On each device, drag until the lines
-   continue straight into the neighbouring screens. The gaps between
-   screens (bezels) are handled naturally: the picture simply continues "behind" them.
-   Each screen shows the size it is assumed to have (e.g. "65 × 145 mm"); it should match the real screen.
-   *Card size* lets you match a bank card outline to set the exact physical size of a screen.
-   *Resize* allows changing the size with two fingers, *Rotate* allows small twists if a device lies slightly
-   crooked. Both are off by default so a stray second finger can't change them.
-5. **Play** – a chess board appears in the middle of all screens. Drag pieces across screens; they snap to the
+3. **Align** – lay the devices next to each other. Every screen shows the same pattern of lines and circles.
+   Swipe with one finger in one quick, straight line from the game master's screen across the gap onto a
+   neighbouring screen: that screen jumps into place. Swipe from lined-up screens onto the next ones (one long
+   swipe can cross a whole row). A second swipe across the same gap, near its other end, also matches the size
+   of screens with a different pixel density and small tilts. Each screen shows its status ("Lined up with
+   screen 1 ✓ (2 swipes)"), and the lines should now continue straight across the gaps.
+
+   How it works: every device syncs its clock with the game master's device, records the finger's path with
+   timestamps, and sends it over. Where the finger left one screen and entered the next, in which direction and
+   when, gives the position and rotation; two swipes some distance apart also give the scale. The bezels are
+   handled naturally: the picture simply continues "behind" them.
+
+   If swiping doesn't work out, switch the tool to *drag* and move each screen's pattern by hand
+   (*Resize*, *Rotate* and *Card size*, to match a bank card outline, are there too), or use **Manual layout**
+   on the game master's device to arrange rectangles. Each screen shows the size it is assumed to have
+   (e.g. "65 × 145 mm"); it should roughly match the real screen.
+4. **Play** – a chess board appears in the middle of all screens. Drag pieces across screens; they snap to the
    squares. Drop a piece on an opposing piece to capture it: captured black pieces line up above the board,
    white ones below. A piece dropped off the board is removed the same way, and dragging a captured piece back
    onto the board returns it to the game. Moves are not checked against the chess rules.
@@ -91,7 +98,7 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 ## Tips and limits
 
 - Put all devices on the **same Wi-Fi**. Across different networks (e.g. mobile data) a TURN server is needed.
-- Turn off auto-rotate before the layout step; a device that rotates changes its screen shape.
+- Turn off auto-rotate before aligning; a device that rotates changes its screen shape.
 - Use fullscreen (⛶). iPhones don't support fullscreen in the browser: use Share → **Add to Home Screen**.
   That also stops Safari's swipe-back gesture when you drag pieces over the left edge.
 - Screen sizes are first guessed from the device type; the align step (or *Card size*) fixes the exact scale.
@@ -105,7 +112,8 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 | `lib/` | Redis access ([node-redis](https://github.com/redis/node-redis)) with an in-memory fallback, HTTP helpers |
 | `public/js/core.js` | Game master's authoritative state: devices, their position on the table, pieces |
 | `public/js/screen.js` | Draws one device's part of the table and handles touch (align gestures, dragging) |
-| `public/js/layout.js` | Layout editor on the game master's device |
+| `public/js/swipe.js` | Automatic alignment from swipes across screens |
+| `public/js/layout.js` | Manual layout editor on the game master's device |
 | `public/js/games.js`, `draw.js` | Chess setup, captures, and drawing of the board and pieces |
 | `public/js/net.js` | WebRTC connection setup and API calls |
 | `public/js/diag.js` | Connection log and the "Connection details" screen |

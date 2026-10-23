@@ -210,8 +210,8 @@ export async function startHost(secret) {
     section('Screens', h('ul', { id: 'devList', class: 'devices' })),
     section(
       'Steps',
-      h('div', { class: 'seg', id: 'modeSeg' }, ...[['layout', '1 · Layout'], ['align', '2 · Align'], ['play', '3 · Play']].map(([m, l]) => h('button', { 'data-mode': m, onclick: () => setMode(m) }, l))),
-      h('p', { class: 'muted' }, 'Layout: place the screens roughly. Align: drag each screen until the lines continue across the gaps. Play: start a chess game.'),
+      h('div', { class: 'seg', id: 'modeSeg' }, ...[['align', '1 · Align'], ['play', '2 · Play'], ['layout', 'Manual layout']].map(([m, l]) => h('button', { 'data-mode': m, onclick: () => setMode(m) }, l))),
+      h('p', { class: 'muted' }, 'Align: swipe from your screen across each gap onto the next screen, twice per gap. Play: chess starts. Manual layout and the drag tool are there if swiping does not work out.'),
     ),
     section(
       'Chess',
@@ -260,6 +260,7 @@ export async function startHost(secret) {
     });
   }
 
+  core.log = log;
   core.on(() => {
     screen.dirty = true;
     persist();
