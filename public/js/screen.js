@@ -1,7 +1,7 @@
 // One physical screen: draws its slice of the shared table and handles touch.
 // Used by every device, including the game master's.
 import { toWorld, corners, bounds, pin, dist, mid, clamp } from './geom.js';
-import { drawBoard, drawPiece, hitTest, loadPieces, drawMadn, madnAnimMs, MADN_RESULT_MS } from './draw.js';
+import { drawBoard, drawPiece, hitTest, loadPieces, drawMadn, madnAnimMs, MADN_RESULT_MS, MADN_ROLL_MS } from './draw.js';
 import * as madn from './games/mensch-aerger-dich-nicht.js';
 import { EDGE_PX, MIN_SPEED } from './swipe.js';
 import { log } from './diag.js';
@@ -108,16 +108,19 @@ export class Screen {
         this.drags.clear();
         this.pending.clear();
         this.madnAnim = this.rollStart = undefined;
+        this.madnRolling = this.pendingToast = null;
         break;
       case 'madn': {
-        // Mensch ärgere Dich nicht: new game state after a roll or a move
+        // Mensch ärgere Dich nicht: new game state after a roll or a move. After a roll, the die
+        // first rolls in the old state; the result (and what follows, like the turn passing and
+        // the notice) only shows when the animation ends, so nothing gives it away early.
+        this.applyMadn(); // a result still waiting for its animation: show it now
         const prev = this.state.madn, g = m.game, now = performance.now();
-        if (prev && g.rollSeq !== prev.rollSeq) this.rollStart = now;
-        if (prev && g.moveSeq !== prev.moveSeq && g.lastMove) this.madnAnim = { move: g.lastMove, start: now };
-        if (g.events.length && (!prev || g.rollSeq !== prev.rollSeq || g.moveSeq !== prev.moveSeq)) {
-          this.toast = { text: g.events.join(' '), until: now + 2500 + g.events.join(' ').length * 40 };
+        if (prev && g.rollSeq !== prev.rollSeq) {
+          this.madnRolling = { color: prev.turn, game: g, until: now + MADN_ROLL_MS };
+        } else {
+          this.showMadn(g, prev, now);
         }
-        this.state.madn = g;
         break;
       }
       case 'piece': {
@@ -160,11 +163,43 @@ export class Screen {
     }, 20000);
   }
 
+  // Shows a Mensch ärgere Dich nicht state; notices appear after the move animation.
+  showMadn(g, prev, now) {
+    let delay = 0;
+    if (prev && g.moveSeq !== prev.moveSeq && g.lastMove) {
+      this.madnAnim = { move: g.lastMove, start: now };
+      delay = madnAnimMs(madn, g.lastMove);
+    }
+    const text = g.events.join(' ');
+    if (text && (!prev || g.rollSeq !== prev.rollSeq || g.moveSeq !== prev.moveSeq)) this.pendingToast = { text, at: now + delay };
+    this.state.madn = g;
+  }
+
+  // The die has stopped rolling: show the state that came with the roll.
+  applyMadn() {
+    const r = this.madnRolling;
+    if (!r) return;
+    this.madnRolling = null;
+    const now = performance.now();
+    this.rollStart = now - MADN_ROLL_MS; // the result shows from now on, and fades as usual
+    this.showMadn(r.game, this.state.madn, now);
+  }
+
   frame() {
     const now = performance.now();
     if (this.trail && now > this.trail.until) this.trail = null;
     if (this.toast && now > this.toast.until) this.toast = null;
     if (this.trail || this.toast) this.dirty = true;
+    if (this.madnRolling) {
+      this.dirty = true;
+      if (now >= this.madnRolling.until) this.applyMadn();
+    }
+    if (this.pendingToast && now >= this.pendingToast.at) {
+      const text = this.pendingToast.text;
+      this.toast = { text, until: now + 2500 + text.length * 40 };
+      this.pendingToast = null;
+    }
+    if (this.pendingToast) this.dirty = true;
     if (this.rollStart !== undefined && now - this.rollStart < MADN_RESULT_MS + 50) this.dirty = true;
     if (this.madnAnim && now - this.madnAnim.start < madnAnimMs(madn, this.madnAnim.move)) this.dirty = true;
     for (const [id, [x, y]] of this.pending) this.send({ t: 'drag', id, x, y });
@@ -193,7 +228,7 @@ export class Screen {
       this.drawPattern(ctx, px);
     } else {
       if (this.state.board.type === 'madn') {
-        drawMadn(ctx, this.state.board, this.state.madn, madn, performance.now(), this.madnAnim, this.rollStart);
+        drawMadn(ctx, this.state.board, this.state.madn, madn, performance.now(), this.madnAnim, this.rollStart, this.madnRolling?.color);
       } else {
         drawBoard(ctx, this.state.board, px);
         const list = Object.values(this.state.pieces).sort((a, b) => a.z - b.z);
@@ -468,7 +503,7 @@ export class Screen {
   madnPointer(e) {
     if (e.type !== 'pointerdown') return;
     const g = this.state.madn, b = this.state.board;
-    if (!g || g.phase === 'over') return;
+    if (!g || g.phase === 'over' || this.madnRolling) return; // wait until the die has stopped
     const [wx, wy] = toWorld(this.view, e.clientX, e.clientY);
     const at = ([c, r]) => [b.x + (c + 0.5) * b.cell, b.y + (r + 0.5) * b.cell];
     const near = (cell, r = 0.6) => {

@@ -126,8 +126,9 @@ function disc(ctx, x, y, r) {
   ctx.arc(x, y, r, 0, Math.PI * 2);
 }
 
-// `madn` is the rules module; `anim` = { move, start } for the last move, `rollStart` when the die was rolled.
-export function drawMadn(ctx, b, g, madn, now, anim, rollStart) {
+// `madn` is the rules module; `anim` = { move, start } for the last move, `rollStart` when the die was
+// rolled. While `rollingColor` is set, that player's die is still rolling (the result isn't known yet).
+export function drawMadn(ctx, b, g, madn, now, anim, rollStart, rollingColor) {
   const at = ([c, r]) => [b.x + (c + 0.5) * b.cell, b.y + (r + 0.5) * b.cell];
   const cell = b.cell;
   ctx.save();
@@ -218,14 +219,19 @@ export function drawMadn(ctx, b, g, madn, now, anim, rollStart) {
   // Like a real die it keeps showing the player's last roll while they roll again (another try,
   // the extra roll after a 6); it is blank when the next player takes over. The previous
   // player's result stays visible at their corner for a moment, fading out.
+  const spotXY = (color) => madn.dieSpot(color).map((v, k) => (k ? b.y : b.x) + v * cell);
+  if (rollingColor) {
+    drawDie(ctx, ...spotXY(rollingColor), cell * 0.55, null, madn.COLOR_HEX[rollingColor], { rolling: true });
+    ctx.restore();
+    return;
+  }
   const since = rollStart === undefined ? Infinity : now - rollStart;
   const result = since < MADN_RESULT_MS ? g.lastRoll : null;
-  const rolling = since < 600;
-  const spotXY = (color) => madn.dieSpot(color).map((v, k) => (k ? b.y : b.x) + v * cell);
+  const rolling = since < MADN_ROLL_MS;
   if (result && result.color !== g.turn) {
     drawDie(ctx, ...spotXY(result.color), cell * 0.55, rolling ? null : result.value, madn.COLOR_HEX[result.color], {
       rolling,
-      alpha: rolling ? 1 : Math.max(0, 1 - (since - 600) / (MADN_RESULT_MS - 600)),
+      alpha: rolling ? 1 : Math.max(0, 1 - (since - MADN_ROLL_MS) / (MADN_RESULT_MS - MADN_ROLL_MS)),
     });
   }
   const mine = result && result.color === g.turn;
@@ -237,7 +243,8 @@ export function drawMadn(ctx, b, g, madn, now, anim, rollStart) {
   ctx.restore();
 }
 
-// How long a roll's result stays visible before the die goes blank for the next roll (ms).
+// How long the die rolls, and how long a result stays visible at the previous player's corner (ms).
+export const MADN_ROLL_MS = 600;
 export const MADN_RESULT_MS = 1600;
 
 function drawDie(ctx, x, y, s, value, color, { rolling = false, glow = false, alpha = 1 } = {}) {
