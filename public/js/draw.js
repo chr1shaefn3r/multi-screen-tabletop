@@ -67,6 +67,16 @@ export function drawPiece(ctx, p, pxPerMm) {
     ctx.shadowBlur = 4;
     ctx.shadowOffsetY = 2;
   }
+  if (p.selected) {
+    // highlight: this piece moves to the next square touched, on any screen
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 1.12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 213, 79, .55)';
+    ctx.fill();
+    ctx.lineWidth = s * 0.12;
+    ctx.strokeStyle = '#ffb300';
+    ctx.stroke();
+  }
   const key = p.color + CODES[p.glyph];
   const img = images[key];
   if (img?.complete && img.naturalWidth) {

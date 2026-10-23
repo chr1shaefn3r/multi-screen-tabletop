@@ -150,3 +150,55 @@ test('a reconnecting device keeps its place', () => {
   assert.equal(inbox[0].view.ox, 500);
   assert.equal(inbox[0].you.num, 2);
 });
+
+test('tap a piece, then a square on another screen: the piece moves there', () => {
+  const { core, inB } = chessTable();
+  const b = core.state.board;
+  const knight = findPiece(core, '♞', 'w', 6, 7);
+  core.handle('b', { t: 'grab', id: knight.id });
+  core.handle('b', { t: 'tap', id: knight.id });
+  assert.equal(knight.selected, true);
+  assert.ok(inB.some((m) => m.t === 'piece' && m.p.id === knight.id && m.p.selected), 'all screens show it selected');
+  // the other screen touches f3: it picks up the selected piece and drops it there
+  core.handle('a', { t: 'grab', id: knight.id });
+  core.handle('a', { t: 'drop', id: knight.id, x: b.x + 5.4 * b.cell, y: b.y + 5.6 * b.cell });
+  assert.equal(knight.selected, false);
+  close(knight.x, b.x + 5.5 * b.cell);
+  close(knight.y, b.y + 5.5 * b.cell);
+});
+
+test('a piece slid off a screen edge waits there and the next screen places it', () => {
+  const { core } = chessTable();
+  const b = core.state.board;
+  const pawn = findPiece(core, '♟', 'w', 3, 6);
+  const [x0, y0] = [pawn.x, pawn.y];
+  core.handle('a', { t: 'grab', id: pawn.id });
+  core.handle('a', { t: 'drag', id: pawn.id, x: x0 + 9, y: y0 - 20 });
+  core.handle('a', { t: 'hold', id: pawn.id, x: x0 + 9, y: y0 - 20 });
+  assert.deepEqual([pawn.selected, pawn.heldBy, pawn.x], [true, null, x0 + 9], 'waits where the finger left');
+  core.handle('b', { t: 'grab', id: pawn.id });
+  core.handle('b', { t: 'drop', id: pawn.id, x: b.x + 4.5 * b.cell, y: b.y + 4.5 * b.cell });
+  close(pawn.x, b.x + 4.5 * b.cell);
+  assert.equal(pawn.selected, false);
+
+  // tapping a waiting piece again sends it back to where it came from
+  const rook = findPiece(core, '♜', 'w', 0, 7);
+  const [rx, ry] = [rook.x, rook.y];
+  core.handle('a', { t: 'grab', id: rook.id });
+  core.handle('a', { t: 'hold', id: rook.id, x: rx + 30, y: ry - 30 });
+  core.handle('a', { t: 'grab', id: rook.id });
+  core.handle('a', { t: 'tap', id: rook.id });
+  assert.deepEqual([rook.x, rook.y, rook.selected], [rx, ry, false]);
+});
+
+test('selecting another piece or touching beside the board unselects', () => {
+  const { core } = chessTable();
+  const a = findPiece(core, '♟', 'w', 0, 6), c = findPiece(core, '♟', 'w', 1, 6);
+  core.handle('a', { t: 'grab', id: a.id });
+  core.handle('a', { t: 'tap', id: a.id });
+  core.handle('a', { t: 'grab', id: c.id });
+  core.handle('a', { t: 'tap', id: c.id });
+  assert.deepEqual([a.selected, c.selected], [false, true]);
+  core.handle('b', { t: 'cancel' });
+  assert.equal(c.selected, false);
+});

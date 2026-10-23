@@ -155,10 +155,16 @@ export class HostCore {
         this.deliver(this.aligner.add(id, pts));
         break;
       }
+      // Moving pieces. A piece can be "selected" (one at a time, shown highlighted on all
+      // screens): by tapping it, or by sliding it off a screen edge while dragging. The next
+      // touch on a square of any screen then moves it there. This is how pieces cross screens.
       case 'grab':
         if (!p || this.mode !== 'play') break;
         if (!p.heldBy || p.heldBy === id || !this.devices.get(p.heldBy)?.connected) {
-          if (p.heldBy !== id) this.grabbedFrom.set(p.id, { x: p.x, y: p.y, captured: p.captured, size: p.size });
+          if (!p.selected) {
+            this.clearSelection();
+            if (p.heldBy !== id) this.grabbedFrom.set(p.id, { x: p.x, y: p.y, captured: p.captured, size: p.size });
+          }
           p.heldBy = id;
           p.z = ++this.z;
           this.broadcast({ t: 'piece', p });
@@ -167,7 +173,8 @@ export class HostCore {
         }
         break;
       case 'drag':
-      case 'drop': {
+      case 'drop':
+      case 'hold': {
         if (!p) break;
         if (p.heldBy !== id) {
           this.send(d, { t: 'piece', p });
@@ -178,20 +185,50 @@ export class HostCore {
         if (m.t === 'drag') {
           Object.assign(p, { x, y });
           this.broadcast({ t: 'piece', p }, id);
-          break;
+        } else if (m.t === 'hold') {
+          // the finger slid off the screen: the piece waits at the edge for the next screen
+          Object.assign(p, { x, y, heldBy: null, selected: true });
+          this.broadcast({ t: 'piece', p });
+        } else {
+          const from = this.grabbedFrom.get(p.id) || { x: p.x, y: p.y, captured: p.captured, size: p.size };
+          this.grabbedFrom.delete(p.id);
+          Object.assign(p, { x, y, heldBy: null, selected: false });
+          for (const q of dropPiece(this.state, p, from, (cx, cy, r) => this.onOneScreen(cx, cy, r))) this.broadcast({ t: 'piece', p: q });
+          this.emit();
         }
-        const from = this.grabbedFrom.get(p.id) || { x: p.x, y: p.y, captured: p.captured, size: p.size };
-        this.grabbedFrom.delete(p.id);
-        Object.assign(p, { x, y, heldBy: null });
-        for (const q of dropPiece(this.state, p, from, (cx, cy, r) => this.onOneScreen(cx, cy, r))) this.broadcast({ t: 'piece', p: q });
-        this.emit();
         break;
       }
+      case 'tap': // a piece was tapped without moving it: select it, or unselect it
+        if (!p || this.mode !== 'play') break;
+        if (p.heldBy === id) p.heldBy = null;
+        if (p.selected) {
+          this.clearSelection();
+        } else {
+          this.clearSelection();
+          this.grabbedFrom.set(p.id, { x: p.x, y: p.y, captured: p.captured, size: p.size });
+          p.selected = true;
+          this.broadcast({ t: 'piece', p });
+        }
+        break;
+      case 'cancel': // touched beside the board while a piece was selected
+        this.clearSelection();
+        break;
+    }
+  }
+
+  // Unselects the selected piece; if it was waiting at a screen edge it goes back to where it came from.
+  clearSelection() {
+    for (const q of Object.values(this.state.pieces)) {
+      if (!q.selected) continue;
+      Object.assign(q, this.grabbedFrom.get(q.id) || {}, { selected: false, heldBy: null });
+      this.grabbedFrom.delete(q.id);
+      this.broadcast({ t: 'piece', p: q });
     }
   }
 
   setMode(mode) {
     this.mode = mode;
+    this.clearSelection();
     for (const p of Object.values(this.state.pieces)) p.heldBy = null;
     this.broadcast({ t: 'mode', mode, center: this.center() });
     this.emit();
@@ -228,6 +265,8 @@ export class HostCore {
     this.z = 1;
     this.grabbedFrom.clear();
     this.broadcast({ t: 'state', state: this.state });
+    const tip = 'Tip: tap a piece, then tap where it should go: that works across screens. Or drag it off the edge and keep going on the next screen.';
+    this.broadcast({ t: 'status', toast: tip });
     this.emit();
   }
 

@@ -24,10 +24,16 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
    (*Resize* and *Card size*, to match a bank card outline, are there too), or use **Manual layout**
    on the game master's device to arrange rectangles. Each screen shows the size it is assumed to have
    (e.g. "65 × 145 mm"); it should roughly match the real screen.
-4. **Play** – a chess board appears in the middle of all screens. Drag pieces across screens; they snap to the
-   squares. Drop a piece on an opposing piece to capture it: captured black pieces line up above the board,
-   white ones below. A piece dropped off the board is removed the same way, and dragging a captured piece back
-   onto the board returns it to the game. Moves are not checked against the chess rules.
+4. **Play** – a chess board appears in the middle of all screens. Three ways to move a piece:
+   - **Drag** it on one screen; it snaps to the squares.
+   - **Tap** it (it lights up on all screens), then **tap the target square**, on any screen.
+   - **Drag it off the screen edge**: it waits at the edge, highlighted, and the next touch on the neighbouring
+     screen picks it up and it follows that finger.
+
+   Tapping a highlighted piece again, or touching beside the board, puts it back. Drop a piece on an opposing
+   piece to capture it: captured black pieces line up above the board, white ones below. A piece dropped off
+   the board is removed the same way, and dragging a captured piece back onto the board returns it to the game.
+   Moves are not checked against the chess rules.
 
 ## How the devices connect
 
@@ -107,7 +113,6 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 - Use fullscreen (⛶). iPhones don't support fullscreen in the browser: use Share → **Add to Home Screen**.
   That also stops Safari's swipe-back gesture when you drag pieces over the left edge.
 - Screen sizes are first guessed from the device type; the align step (or *Card size*) fixes the exact scale.
-- A piece can't be dragged over a gap in one go: drag it to the edge, then pick it up on the next screen.
 
 ## Code overview
 

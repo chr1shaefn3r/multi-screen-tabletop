@@ -6,6 +6,7 @@ import { EDGE_PX, MIN_SPEED } from './swipe.js';
 import { log } from './diag.js';
 
 const CARD = [85.6, 53.98]; // ISO/IEC 7810 ID-1 (bank card) in mm
+const EDGE_RELEASE = 24; // px: a drag that ends this close to the screen edge slid off the screen
 
 export class Screen {
   constructor(canvas, send) {
@@ -95,7 +96,7 @@ export class Screen {
       }
       case 'status':
         if (m.text !== undefined) this.alignStatus = m.text;
-        if (m.toast) this.toast = { text: m.toast, until: performance.now() + 3500 };
+        if (m.toast) this.toast = { text: m.toast, until: performance.now() + 2500 + m.toast.length * 40 };
         break;
       case 'mode':
         this.center = m.center;
@@ -437,27 +438,48 @@ export class Screen {
     }
   }
 
-  // --- Step 3: play. Drag pieces; dropping is checked by the game master (captures etc.).
+  // --- Play: drag pieces on a screen, or tap a piece and then its target square (works across
+  // screens). A piece dragged off the screen edge waits there; the next touch on a square of any
+  // screen moves it there. Drops are checked by the game master (captures etc.).
   playPointer(e) {
     const id = e.pointerId;
+    const pieces = this.state.pieces;
     if (e.type === 'pointerdown') {
       const [wx, wy] = toWorld(this.view, e.clientX, e.clientY);
-      const p = hitTest(this.state.pieces, wx, wy, 28 / this.view.scale);
+      const hit = hitTest(pieces, wx, wy, 28 / this.view.scale);
+      const sel = Object.values(pieces).find((q) => q.selected && (!q.heldBy || q.heldBy === this.me.id));
+      let p = hit, place = false;
+      if (sel && (!hit || (hit.color !== sel.color && !hit.captured))) {
+        // a piece is selected (tapped, or waiting at a screen edge): this touch says where it goes
+        const b = this.state.board, m = b.cell * 0.35;
+        if (!hit && (wx < b.x - m || wy < b.y - m || wx > b.x + b.w + m || wy > b.y + b.h + m)) {
+          this.send({ t: 'cancel' }); // touched beside the board: never mind
+          return;
+        }
+        p = sel;
+        place = true;
+      }
       if (!p || [...this.drags.values()].some((d) => d.id === p.id)) return;
       if (p.heldBy && p.heldBy !== this.me.id) return;
       this.capture(e);
-      this.drags.set(id, { pointerId: id, id: p.id, offX: p.x - wx, offY: p.y - wy, sx: e.clientX, sy: e.clientY, moved: false });
-      p.z = Math.max(0, ...Object.values(this.state.pieces).map((q) => q.z || 0)) + 1;
+      const off = place ? [0, 0] : [p.x - wx, p.y - wy]; // a placed piece jumps under the finger
+      this.drags.set(id, { pointerId: id, id: p.id, offX: off[0], offY: off[1], sx: e.clientX, sy: e.clientY, last: [e.clientX, e.clientY], moved: false, place });
+      p.z = Math.max(0, ...Object.values(pieces).map((q) => q.z || 0)) + 1;
       this.send({ t: 'grab', id: p.id });
+      if (place) {
+        [p.x, p.y] = [wx, wy];
+        this.pending.set(p.id, [wx, wy]);
+      }
     } else {
       const d = this.drags.get(id);
       if (!d) return;
-      const p = this.state.pieces[d.id];
+      const p = pieces[d.id];
       if (!p) {
         this.drags.delete(id);
         return;
       }
       if (e.type === 'pointermove') {
+        d.last = [e.clientX, e.clientY];
         if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 8) d.moved = true;
         if (!d.moved) return;
         const [wx, wy] = toWorld(this.view, e.clientX, e.clientY);
@@ -467,7 +489,12 @@ export class Screen {
       } else {
         this.drags.delete(id);
         this.pending.delete(p.id);
-        this.send({ t: 'drop', id: p.id, x: p.x, y: p.y });
+        const [lx, ly] = d.last;
+        const atEdge = lx < EDGE_RELEASE || ly < EDGE_RELEASE || lx > this.w - EDGE_RELEASE || ly > this.h - EDGE_RELEASE;
+        if (d.place) this.send({ t: 'drop', id: p.id, x: p.x, y: p.y });
+        else if (!d.moved) this.send({ t: e.type === 'pointerup' ? 'tap' : 'drop', id: p.id, x: p.x, y: p.y });
+        else if (atEdge || e.type === 'pointercancel') this.send({ t: 'hold', id: p.id, x: p.x, y: p.y }); // slid off the screen
+        else this.send({ t: 'drop', id: p.id, x: p.x, y: p.y });
       }
     }
     this.dirty = true;
