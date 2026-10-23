@@ -1,7 +1,7 @@
 // One physical screen: draws its slice of the shared table and handles touch.
 // Used by every device, including the game master's.
 import { toWorld, corners, bounds, pin, dist, mid, clamp } from './geom.js';
-import { drawBoard, drawPiece, hitTest } from './draw.js';
+import { drawBoard, drawPiece, hitTest, loadPieces } from './draw.js';
 import { EDGE_PX, MIN_SPEED } from './swipe.js';
 import { log } from './diag.js';
 
@@ -36,6 +36,7 @@ export class Screen {
     this.lastViewSend = 0;
     window.__screen = this; // handy for debugging from the browser console
 
+    loadPieces(() => (this.dirty = true));
     this.resize();
     addEventListener('resize', () => this.resize());
     for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) canvas.addEventListener(t, (e) => this.pointer(e));
@@ -178,7 +179,7 @@ export class Screen {
     } else {
       drawBoard(ctx, this.state.board, px);
       const list = Object.values(this.state.pieces).sort((a, b) => a.z - b.z);
-      for (const p of list) drawPiece(ctx, p);
+      for (const p of list) drawPiece(ctx, p, v.scale * this.dpr);
     }
     ctx.restore();
     if (align) this.drawAlignHud(ctx, w, h);

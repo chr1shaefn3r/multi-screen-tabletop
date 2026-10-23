@@ -117,3 +117,9 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 | `public/js/games.js`, `draw.js` | Chess setup, captures, and drawing of the board and pieces |
 | `public/js/net.js` | WebRTC connection setup and API calls |
 | `public/js/diag.js` | Connection log and the "Connection details" screen |
+
+## Credits
+
+- Chess pieces: the "Cburnett" set by Colin M.L. Burnett (multi-licensed by the author, incl. GPLv2+ and BSD),
+  see `public/pieces/README.md`.
+- QR codes: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT).
