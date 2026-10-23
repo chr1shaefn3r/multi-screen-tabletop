@@ -116,6 +116,20 @@ test('finishing, places and game over', () => {
   assert.equal(madn.roll(g, 6), null, 'nothing happens after the game is over');
 });
 
+test('the die is blank whenever a fresh roll is needed', () => {
+  let g = madn.newGame(['yellow', 'red']);
+  assert.equal(g.die, null);
+  g = madn.roll(g, 6);
+  assert.equal(g.die, 6, 'shown while choosing a move');
+  g = madn.move(g, 0);
+  assert.deepEqual([g.turn, g.die, g.lastRoll.value], ['yellow', null, 6], 'extra roll after a 6: blank again');
+  assert.match(g.events.at(-1), /roll again/);
+  g = madn.move(madn.roll(g, 2), 0);
+  assert.deepEqual([g.turn, g.die], ['red', null], 'next player starts with a blank die');
+  g = madn.roll(g, 4);
+  assert.deepEqual([g.turn, g.die, g.lastRoll], ['red', null, { color: 'red', value: 4 }], 'a miss keeps the result in lastRoll');
+});
+
 test('illegal actions return null', () => {
   const g = madn.newGame(['yellow', 'red']);
   assert.equal(madn.move(g, 0), null, 'must roll first');

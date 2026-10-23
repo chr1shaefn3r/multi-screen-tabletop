@@ -214,20 +214,44 @@ export function drawMadn(ctx, b, g, madn, now, anim, rollStart) {
     });
   }
 
-  // the die, next to the B fields of the player whose turn it is and framed in their colour
-  const spot = madn.dieSpot(g.turn);
-  const [dx, dy] = [b.x + spot[0] * cell, b.y + spot[1] * cell];
-  const s = cell * 0.55;
+  // The die lies next to the B fields of the player whose turn it is, framed in their colour.
+  // It shows a value only while that value has to be used; when a fresh roll is needed it is
+  // blank. Right after a roll the result stays visible for a moment, also when the turn passed
+  // (then at the previous player's corner, fading out).
+  const since = rollStart === undefined ? Infinity : now - rollStart;
+  const result = since < MADN_RESULT_MS ? g.lastRoll : null;
+  const rolling = since < 600;
+  const spotXY = (color) => madn.dieSpot(color).map((v, k) => (k ? b.y : b.x) + v * cell);
+  if (result && result.color !== g.turn) {
+    drawDie(ctx, ...spotXY(result.color), cell * 0.55, rolling ? null : result.value, madn.COLOR_HEX[result.color], {
+      rolling,
+      alpha: rolling ? 1 : Math.max(0, 1 - (since - 600) / (MADN_RESULT_MS - 600)),
+    });
+  }
+  const mine = result && result.color === g.turn;
+  const value = g.phase === 'move' ? g.die : mine ? result.value : null;
+  drawDie(ctx, ...spotXY(g.turn), cell * 0.55, value, g.phase === 'over' ? '#888' : madn.COLOR_HEX[g.turn], {
+    rolling: rolling && mine,
+    glow: g.phase === 'roll' && !(rolling && mine),
+  });
+  ctx.restore();
+}
+
+// How long a roll's result stays visible before the die goes blank for the next roll (ms).
+export const MADN_RESULT_MS = 1600;
+
+function drawDie(ctx, x, y, s, value, color, { rolling = false, glow = false, alpha = 1 } = {}) {
   ctx.save();
-  ctx.translate(dx, dy);
-  let value = g.die;
-  if (rollStart !== undefined && now - rollStart < 600) {
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  if (rolling) {
     value = 1 + Math.floor(Math.random() * 6);
     ctx.rotate((Math.random() - 0.5) * 0.8);
   }
-  if (g.phase === 'roll') {
+  if (glow) {
+    // "tap me": a fresh roll is needed
     disc(ctx, 0, 0, s * 1.75);
-    ctx.fillStyle = madn.COLOR_HEX[g.turn] + '66';
+    ctx.fillStyle = color + '66';
     ctx.fill();
   }
   ctx.beginPath();
@@ -235,14 +259,13 @@ export function drawMadn(ctx, b, g, madn, now, anim, rollStart) {
   ctx.fillStyle = '#fff';
   ctx.fill();
   ctx.lineWidth = s * 0.22;
-  ctx.strokeStyle = g.phase === 'over' ? '#888' : madn.COLOR_HEX[g.turn];
+  ctx.strokeStyle = color;
   ctx.stroke();
   ctx.fillStyle = '#111';
   for (const [px, py] of PIPS[value] || []) {
     disc(ctx, px * s * 0.5, py * s * 0.5, s * 0.17);
     ctx.fill();
   }
-  ctx.restore();
   ctx.restore();
 }
 

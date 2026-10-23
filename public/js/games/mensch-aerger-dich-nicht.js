@@ -37,7 +37,8 @@ export function newGame(players) {
     pieces: Object.fromEntries(ps.map((c) => [c, [WAITING, WAITING, WAITING, WAITING]])),
     turn: ps[0],
     phase: 'roll', // 'roll' | 'move' | 'over'
-    die: null,
+    die: null, // the roll the current player has to use; null = a fresh roll is needed
+    lastRoll: null, // { color, value } of the most recent roll, to show its result
     rollSeq: 0,
     moveSeq: 0,
     lastMove: null,
@@ -105,9 +106,10 @@ export function roll(game, value) {
   if (game.phase !== 'roll' || !(value >= 1 && value <= 6)) return null;
   const g = structuredClone(game);
   const name = NAMES[g.turn];
-  Object.assign(g, { die: value, rollSeq: g.rollSeq + 1, phase: 'move', events: [], lastMove: null });
+  Object.assign(g, { die: value, lastRoll: { color: g.turn, value }, rollSeq: g.rollSeq + 1, phase: 'move', events: [], lastMove: null });
   if (legalMoves(g).length) return g;
   g.phase = 'roll';
+  g.die = null;
   if (value === 6) {
     g.tries = 1;
     g.events.push(`${name} can't move with the 6. Roll again.`);
@@ -150,7 +152,9 @@ export function move(game, i) {
   }
   if (g.die === 6) {
     g.phase = 'roll';
+    g.die = null;
     g.tries = 1;
+    g.events.push(`${name} rolled a 6: roll again.`);
     return g;
   }
   return nextTurn(g);
@@ -163,6 +167,7 @@ function nextTurn(g) {
   while (g.winners.includes(order[k]));
   g.turn = order[k];
   g.phase = 'roll';
+  g.die = null;
   g.tries = triesFor(g, g.turn);
   return g;
 }

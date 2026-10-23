@@ -1,7 +1,7 @@
 // One physical screen: draws its slice of the shared table and handles touch.
 // Used by every device, including the game master's.
 import { toWorld, corners, bounds, pin, dist, mid, clamp } from './geom.js';
-import { drawBoard, drawPiece, hitTest, loadPieces, drawMadn, madnAnimMs } from './draw.js';
+import { drawBoard, drawPiece, hitTest, loadPieces, drawMadn, madnAnimMs, MADN_RESULT_MS } from './draw.js';
 import * as madn from './games/mensch-aerger-dich-nicht.js';
 import { EDGE_PX, MIN_SPEED } from './swipe.js';
 import { log } from './diag.js';
@@ -165,7 +165,7 @@ export class Screen {
     if (this.trail && now > this.trail.until) this.trail = null;
     if (this.toast && now > this.toast.until) this.toast = null;
     if (this.trail || this.toast) this.dirty = true;
-    if (this.rollStart !== undefined && now - this.rollStart < 650) this.dirty = true;
+    if (this.rollStart !== undefined && now - this.rollStart < MADN_RESULT_MS + 50) this.dirty = true;
     if (this.madnAnim && now - this.madnAnim.start < madnAnimMs(madn, this.madnAnim.move)) this.dirty = true;
     for (const [id, [x, y]] of this.pending) this.send({ t: 'drag', id, x, y });
     this.pending.clear();
