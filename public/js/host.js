@@ -4,7 +4,7 @@ import { HostCore } from './core.js';
 import { Screen } from './screen.js';
 import { LayoutEditor } from './layout.js';
 import { log, logError, logIceServers, showDetails } from './diag.js';
-import { $, h, getDeviceId, deviceInfo, keepAwake, toggleFullscreen, setupHud, updateToolbar } from './ui.js';
+import { $, h, getDeviceId, deviceInfo, keepAwake, guardAgainstBack, toggleFullscreen, setupHud, updateToolbar } from './ui.js';
 
 const SESSION_KEY = 'tiletop-host-session';
 const LOBBY_IDLE_MS = 10 * 60 * 1000; // stop polling the server when nobody joined for this long
@@ -270,6 +270,11 @@ export async function startHost(secret) {
 
   setupHud(() => (panel.hidden ? openPanel() : (panel.hidden = true)), showDetails);
   keepAwake();
+  guardAgainstBack((text) => {
+    log(text);
+    screen.toast = { text, until: performance.now() + 5000 };
+    screen.dirty = true;
+  });
   openPanel();
   pollLoop();
 }

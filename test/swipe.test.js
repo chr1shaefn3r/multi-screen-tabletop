@@ -41,9 +41,9 @@ function cornerError(core, id, trueView) {
   }));
 }
 
-test('two swipes line up a different, slightly tilted phone', () => {
+test('two swipes line up a phone with a different pixel density', () => {
   const A = { ox: 0, oy: 0, rot: 0, scale: 6.3 };
-  const B = { ox: 70, oy: 5, rot: 0.02, scale: 5.8 }; // 8 mm bezel gap, 5 mm lower, other pixel density
+  const B = { ox: 70, oy: 5, rot: 0, scale: 5.8 }; // 8 mm bezel gap, 5 mm lower, other pixel density
   const { core, inbox } = table([A, B]);
   assert.ok(cornerError(core, 'd1', B) > 10, 'starts out wrong');
   // screen 2's clock is 3 ms off after syncing (the same for both swipes)
@@ -53,6 +53,18 @@ test('two swipes line up a different, slightly tilted phone', () => {
   const v = core.devices.get('d1').view;
   assert.ok(cornerError(core, 'd1', B) < 1.5, `corner error ${cornerError(core, 'd1', B).toFixed(2)} mm`);
   assert.ok(Math.abs(v.scale - 5.8) / 5.8 < 0.02, `scale ${v.scale}`);
+  assert.equal(v.rot, 0);
+});
+
+test('screens are only ever turned in quarter turns', () => {
+  const A = { ox: 0, oy: 0, rot: 0, scale: 6.3 };
+  const B = { ox: 70, oy: 5, rot: 0.03, scale: 6.3 }; // lying slightly crooked
+  const { core } = table([A, B]);
+  swipe(core, [A, B], [30, 30], [110, 33]);
+  swipe(core, [A, B], [30, 120], [110, 116]);
+  assert.equal(core.devices.get('d1').view.rot, 0);
+  core.handle('d1', { t: 'view', view: { ox: 75, oy: 5, rot: Math.PI / 2 + 0.05, scale: 6.3 } });
+  assert.equal(core.devices.get('d1').view.rot, Math.PI / 2, 'a dragged view is snapped too');
 });
 
 test('one swipe finds a screen that is turned by 90°', () => {

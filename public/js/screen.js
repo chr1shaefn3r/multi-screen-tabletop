@@ -21,7 +21,6 @@ export class Screen {
     this.pending = new Map(); // piece id -> [x, y] waiting to be sent
     this.pts = new Map(); // pointerId -> [x, y] for align gestures
     this.g0 = null;
-    this.freeRotate = false;
     this.allowResize = false; // two-finger resizing in the align step, off unless switched on
     this.cardMode = false;
     this.alignTool = 'swipe'; // 'swipe' (automatic) or 'drag' (by hand)
@@ -151,7 +150,7 @@ export class Screen {
     const now = performance.now();
     if (this.trail && now > this.trail.until) this.trail = null;
     if (this.toast && now > this.toast.until) this.toast = null;
-    if ((this.trail || this.toast) && this.mode === 'align') this.dirty = true;
+    if (this.trail || this.toast) this.dirty = true;
     for (const [id, [x, y]] of this.pending) this.send({ t: 'drag', id, x, y });
     this.pending.clear();
     if (this.editor?.dirty) this.dirty = true;
@@ -183,6 +182,11 @@ export class Screen {
     }
     ctx.restore();
     if (align) this.drawAlignHud(ctx, w, h);
+    else if (this.toast) {
+      const font = 'bold 15px system-ui, sans-serif';
+      box(ctx, w, h / 2, wrapText(ctx, this.toast.text, w / 2, 0, w - 40, 20, font, null).length);
+      wrapText(ctx, this.toast.text, w / 2, h / 2, w - 40, 20, font, '#fff', true);
+    }
   }
 
   // Shown while the game master arranges the layout: who am I, and where is my top edge.
@@ -415,7 +419,6 @@ export class Screen {
       const dw = dist(a.w, b.w), ds = dist(sa, sb);
       if (dw < 1e-6 || ds < 10) return;
       if (this.allowResize) v.scale = clamp(ds / dw, 1, 30);
-      if (this.freeRotate) v.rot = Math.atan2(b.w[1] - a.w[1], b.w[0] - a.w[0]) - Math.atan2(sb[1] - sa[1], sb[0] - sa[0]);
       const wm = mid(a.w, b.w), sm = mid(sa, sb);
       v = pin(v, sm[0], sm[1], wm[0], wm[1]);
     }

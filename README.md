@@ -11,7 +11,8 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
    Swipe with one finger in one quick, straight line from the game master's screen across the gap onto a
    neighbouring screen: that screen jumps into place. Swipe from lined-up screens onto the next ones (one long
    swipe can cross a whole row). A second swipe across the same gap, near its other end, also matches the size
-   of screens with a different pixel density and small tilts. Each screen shows its status ("Lined up with
+   of screens with a different pixel density. Screens are always assumed to lie at right angles to each other
+   (turned by 0°, 90°, 180° or 270°). Each screen shows its status ("Lined up with
    screen 1 ✓ (2 swipes)"), and the lines should now continue straight across the gaps.
 
    How it works: every device syncs its clock with the game master's device, records the finger's path with
@@ -20,7 +21,7 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
    handled naturally: the picture simply continues "behind" them.
 
    If swiping doesn't work out, switch the tool to *drag* and move each screen's pattern by hand
-   (*Resize*, *Rotate* and *Card size*, to match a bank card outline, are there too), or use **Manual layout**
+   (*Resize* and *Card size*, to match a bank card outline, are there too), or use **Manual layout**
    on the game master's device to arrange rectangles. Each screen shows the size it is assumed to have
    (e.g. "65 × 145 mm"); it should roughly match the real screen.
 4. **Play** – a chess board appears in the middle of all screens. Drag pieces across screens; they snap to the
@@ -99,6 +100,10 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 
 - Put all devices on the **same Wi-Fi**. Across different networks (e.g. mobile data) a TURN server is needed.
 - Turn off auto-rotate before aligning; a device that rotates changes its screen shape.
+- On Android phones with gesture navigation, a swipe that enters a screen at its left or right edge looks
+  like the system's "back" gesture. Tiletop catches it (the game stays open, and fullscreen comes back with
+  the next tap), but switching to 3-button navigation, or lowering the back gesture sensitivity, in the
+  Android settings avoids the interruption.
 - Use fullscreen (⛶). iPhones don't support fullscreen in the browser: use Share → **Add to Home Screen**.
   That also stops Safari's swipe-back gesture when you drag pieces over the left edge.
 - Screen sizes are first guessed from the device type; the align step (or *Card size*) fixes the exact scale.

@@ -49,12 +49,47 @@ export function deviceInfo() {
   return { name, scale: cssPpi / 25.4, w: innerWidth, h: innerHeight };
 }
 
-export function toggleFullscreen() {
-  const d = document, el = d.documentElement;
-  if (d.fullscreenElement || d.webkitFullscreenElement) return (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+let wantFullscreen = false; // the user switched fullscreen on and hasn't switched it off
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+
+function enterFullscreen() {
+  const el = document.documentElement;
   const fn = el.requestFullscreen || el.webkitRequestFullscreen;
   if (fn) Promise.resolve(fn.call(el)).catch(() => {});
-  else alert('Fullscreen is not available in this browser.\n\nOn iPhone: tap Share → "Add to Home Screen" and open Tiletop from there.');
+  return !!fn;
+}
+
+export function toggleFullscreen() {
+  const d = document;
+  if (isFullscreen()) {
+    wantFullscreen = false;
+    return (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+  }
+  wantFullscreen = true;
+  if (!enterFullscreen()) {
+    wantFullscreen = false;
+    alert('Fullscreen is not available in this browser.\n\nOn iPhone: tap Share → "Add to Home Screen" and open Tiletop from there.');
+  }
+}
+
+// A swipe from one phone onto the next enters the second screen at its edge, which phones
+// with gesture navigation take as the system "back" gesture. Websites can't turn that off,
+// so make it harmless: keep an extra history entry so "back" stays on the page, and bring
+// fullscreen back with the next tap (browsers only allow entering fullscreen on a tap).
+// `notify(text)` shows what happened.
+export function guardAgainstBack(notify) {
+  const tip = 'Tip: Android\'s 3-button navigation (or a lower back sensitivity) avoids this.';
+  history.pushState({ tiletop: true }, '');
+  addEventListener('popstate', () => {
+    history.pushState({ tiletop: true }, '');
+    notify(`The phone's back gesture was triggered, staying in the game. ${tip}`);
+  });
+  const onChange = () => {
+    if (!isFullscreen() && wantFullscreen) notify(`The back gesture closed fullscreen. Tap the screen to return to it. ${tip}`);
+  };
+  document.addEventListener('fullscreenchange', onChange);
+  document.addEventListener('webkitfullscreenchange', onChange);
+  addEventListener('pointerup', () => wantFullscreen && !isFullscreen() && enterFullscreen(), true);
 }
 
 // Keep the screen from going to sleep during a game.
@@ -109,7 +144,6 @@ export function updateToolbar(screen, host) {
     ];
     if (!swipe) {
       items.push(
-        btn(screen.freeRotate ? 'Rotate: on' : 'Rotate: off', () => (screen.freeRotate = !screen.freeRotate)),
         btn(screen.allowResize ? 'Resize: on' : 'Resize: off', () => {
           screen.allowResize = !screen.allowResize;
           screen.dirty = true;

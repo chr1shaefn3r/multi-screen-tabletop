@@ -3,7 +3,8 @@
 // the game master's clock. Where the line leaves one screen and enters the other, and in
 // which direction, tells where the screens lie relative to each other:
 //   - 1 swipe across a gap: position and which way the screen is turned
-//   - 2+ swipes, some distance apart: also exact size (scale) and small tilts
+//   - 2+ swipes, some distance apart: also exact size (scale)
+// Screens are always assumed to be turned by a multiple of 90° relative to each other.
 // Runs on the game master's device; works in screen pixels and world millimetres.
 import { toWorld, rotV, QUARTER } from './geom.js';
 
@@ -13,7 +14,6 @@ const FIT_MS = 120; // use this much of the stroke next to the edge to fit the f
 const GAP_MS = [-40, 700]; // time from leaving one screen to entering the next (small negative = clock error)
 const MAX_CORR = 4; // swipes remembered per pair of screens
 const MIN_SPREAD_PX = 60; // swipes this far apart are needed to measure the size
-const MAX_TILT = (10 * Math.PI) / 180; // larger differences from a quarter turn are taken as noise
 
 const angle = ([x, y]) => Math.atan2(y, x);
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -198,16 +198,13 @@ export class SwipeAligner {
     const W = list.map((c) => toWorld(ref.view, ...c.refPt));
     const S = list.map((c) => c.tgtPt);
 
-    // which way the screen is turned, from the swipe directions on both screens
+    // which way the screen is turned (in quarter turns), from the swipe directions on both screens
     const dirRot = circMean(list.map((c) => angle(rotV(c.refV[0], c.refV[1], ref.view.rot)) - angle(c.tgtV)));
-    const quarter = Math.round(dirRot / QUARTER) * QUARTER;
-    let rot = Math.abs(wrap(t.view.rot - quarter)) < MAX_TILT ? t.view.rot : quarter;
+    const rot = wrap(Math.round(dirRot / QUARTER) * QUARTER) || 0; // (|| 0 avoids -0)
     let scale = t.view.scale;
     let sized = false;
     const spread = Math.max(...S.map((a) => Math.max(...S.map((b) => Math.hypot(a[0] - b[0], a[1] - b[1])))));
     if (list.length >= 2 && spread >= MIN_SPREAD_PX) {
-      const free = similarity(S, W);
-      rot = Math.abs(wrap(free.rot - quarter)) < MAX_TILT ? free.rot : quarter;
       const s = 1 / similarity(S, W, rot).k;
       if (s / t.view.scale > 0.6 && s / t.view.scale < 1.7) {
         scale = s;

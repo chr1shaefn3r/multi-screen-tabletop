@@ -1,7 +1,7 @@
 // Runs on the game master's device and owns the truth: which screens exist,
 // where they lie on the table, and the game state. Every device (including the
 // game master's own screen) talks to it through a "transport" with send()/close().
-import { bounds, corners, pointInPoly, sanitizeView } from './geom.js';
+import { bounds, corners, pointInPoly, sanitizeView, QUARTER } from './geom.js';
 import { setupChess, dropPiece } from './games.js';
 import { SwipeAligner } from './swipe.js';
 
@@ -139,6 +139,7 @@ export class HostCore {
         // the device was dragged by hand in the align step
         const v = sanitizeView(m.view);
         if (v) {
+          v.rot = Math.round(v.rot / QUARTER) * QUARTER || 0; // screens are only ever turned in quarter turns
           d.view = v;
           this.aligner.movedByHand(id);
           this.emit();

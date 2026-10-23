@@ -2,7 +2,7 @@
 import { join, transport, sleep } from './net.js';
 import { Screen } from './screen.js';
 import { log, logError, showDetails } from './diag.js';
-import { $, showOverlay, hideOverlay, getDeviceId, deviceInfo, keepAwake, setupHud, updateToolbar } from './ui.js';
+import { $, showOverlay, hideOverlay, getDeviceId, deviceInfo, keepAwake, guardAgainstBack, setupHud, updateToolbar } from './ui.js';
 
 export async function startPlayer(code) {
   $('#home').hidden = true;
@@ -14,6 +14,11 @@ export async function startPlayer(code) {
   screen.onMode = () => updateToolbar(screen, null);
   setupHud(null, showDetails);
   keepAwake();
+  guardAgainstBack((text) => {
+    log(text);
+    screen.toast = { text, until: performance.now() + 5000 };
+    screen.dirty = true;
+  });
 
   const leave = () => {
     location.href = '/';
