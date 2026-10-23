@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tiletop">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="Put phones and tablets side by side and play tabletop games on one big shared screen.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <title>Tiletop</title>
+</head>
+<body>
+  <canvas id="table" hidden></canvas>
+
+  <main id="home" hidden>
+    <h1>Tiletop</h1>
+    <p class="lead">Put phones and tablets side by side on a table and turn them into one big game board.</p>
+
+    <form id="joinForm" class="card">
+      <label for="code">Game code</label>
+      <input id="code" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="6" placeholder="K7RX2M">
+      <button type="submit" class="primary">Join game</button>
+      <p class="error" id="joinError" role="alert"></p>
+    </form>
+
+    <details class="card" id="hostDetails">
+      <summary>I'm the game master</summary>
+      <form id="hostForm">
+        <label for="secret">Host password</label>
+        <input id="secret" type="password" autocomplete="current-password">
+        <button type="submit" class="primary">Open a new table</button>
+        <p class="error" id="hostError" role="alert"></p>
+      </form>
+    </details>
+
+    <ol class="howto">
+      <li>The game master opens a table and gets a 6-character code.</li>
+      <li>Everyone else opens this page and joins with the code. Use the same Wi-Fi.</li>
+      <li>Lay the devices next to each other. The game master arranges the screens, then everyone lines up the pattern on their own screen.</li>
+      <li>Pick a game. Pieces can be dragged from one screen to the next.</li>
+    </ol>
+    <p class="tip">Tip: turn off auto-rotate and use fullscreen. On iPhone, use Share → "Add to Home Screen".</p>
+  </main>
+
+  <div id="overlay" hidden>
+    <div class="box">
+      <div class="spinner"></div>
+      <p id="overlayMsg"></p>
+      <div id="overlayActions"></div>
+    </div>
+  </div>
+  <div id="hud" hidden></div>
+  <div id="toolbar" hidden></div>
+  <aside id="panel" hidden></aside>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

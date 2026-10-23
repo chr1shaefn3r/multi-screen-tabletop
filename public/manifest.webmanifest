@@ -1,0 +1,10 @@
+{
+  "name": "Tiletop",
+  "short_name": "Tiletop",
+  "description": "Put phones and tablets side by side and play tabletop games on one big shared screen.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
