@@ -116,7 +116,7 @@ test('finishing, places and game over', () => {
   assert.equal(madn.roll(g, 6), null, 'nothing happens after the game is over');
 });
 
-test('the die is blank whenever a fresh roll is needed', () => {
+test('die: cleared when a roll is needed, lastRoll keeps the result (shown while the same player rolls again)', () => {
   let g = madn.newGame(['yellow', 'red']);
   assert.equal(g.die, null);
   g = madn.roll(g, 6);

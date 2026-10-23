@@ -215,9 +215,9 @@ export function drawMadn(ctx, b, g, madn, now, anim, rollStart) {
   }
 
   // The die lies next to the B fields of the player whose turn it is, framed in their colour.
-  // It shows a value only while that value has to be used; when a fresh roll is needed it is
-  // blank. Right after a roll the result stays visible for a moment, also when the turn passed
-  // (then at the previous player's corner, fading out).
+  // Like a real die it keeps showing the player's last roll while they roll again (another try,
+  // the extra roll after a 6); it is blank when the next player takes over. The previous
+  // player's result stays visible at their corner for a moment, fading out.
   const since = rollStart === undefined ? Infinity : now - rollStart;
   const result = since < MADN_RESULT_MS ? g.lastRoll : null;
   const rolling = since < 600;
@@ -229,7 +229,7 @@ export function drawMadn(ctx, b, g, madn, now, anim, rollStart) {
     });
   }
   const mine = result && result.color === g.turn;
-  const value = g.phase === 'move' ? g.die : mine ? result.value : null;
+  const value = g.phase === 'move' ? g.die : g.lastRoll?.color === g.turn ? g.lastRoll.value : null;
   drawDie(ctx, ...spotXY(g.turn), cell * 0.55, value, g.phase === 'over' ? '#888' : madn.COLOR_HEX[g.turn], {
     rolling: rolling && mine,
     glow: g.phase === 'roll' && !(rolling && mine),
