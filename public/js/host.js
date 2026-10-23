@@ -171,6 +171,23 @@ export async function startHost(secret) {
   const section = (title, ...kids) => h('section', {}, h('h3', {}, title), ...kids);
   const action = (label, fn, cls = '') => h('button', { class: cls, onclick: fn }, label);
 
+  // Where every screen and the board are on the virtual table (in mm), to debug placement.
+  function logGeometry(game) {
+    const r = (n) => Math.round(n);
+    log(`Started ${game}. Screens on the table (mm, x→right, y→down):`);
+    for (const d of core.connected()) {
+      const u = core.union([d]);
+      const turned = Math.round((((d.view.rot * 180) / Math.PI) % 360 + 360) % 360);
+      log(`    • screen ${d.num} (${d.name}): ${r(u.l)}…${r(u.r)} × ${r(u.t)}…${r(u.b)}, ${d.w}×${d.h} px at ${d.view.scale.toFixed(2)} px/mm, turned ${turned}°`);
+      const mm = Math.max(d.w, d.h) / d.view.scale;
+      if (mm > 350 || mm < 40) logError(`    screen ${d.num} is assumed to be ${r(mm)} mm long, which can't be right: its size was probably changed by accident in the align step`);
+    }
+    const u = core.union();
+    log(`    all screens together: ${r(u.l)}…${r(u.r)} × ${r(u.t)}…${r(u.b)} (${r(u.w)}×${r(u.h)} mm)`);
+    const b = core.state.board;
+    if (b.type !== 'none') log(`    board: ${r(b.x)}…${r(b.x + b.w)} × ${r(b.y)}…${r(b.y + b.h)}`);
+  }
+
   async function loadImage(file) {
     if (!file) return;
     const img = new Image();
@@ -184,6 +201,7 @@ export async function startHost(secret) {
       c.height = Math.round(img.naturalHeight * k);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       core.setImage(c.toDataURL('image/jpeg', 0.85), c.width, c.height);
+      logGeometry('image map');
       if (core.mode !== 'play') setMode('play');
       panel.hidden = true;
     } catch {
@@ -195,6 +213,7 @@ export async function startHost(secret) {
 
   const startGame = (id) => {
     core.newGame(id);
+    logGeometry(id);
     if (core.mode !== 'play') setMode('play');
     panel.hidden = true;
   };

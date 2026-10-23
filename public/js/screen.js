@@ -22,6 +22,7 @@ export class Screen {
     this.pts = new Map(); // pointerId -> [x, y] for align gestures
     this.g0 = null;
     this.freeRotate = false;
+    this.allowResize = false; // two-finger resizing in the align step, off unless switched on
     this.cardMode = false;
     this.editor = null; // layout editor, only on the game master's device
     this.rolls = new Map();
@@ -269,13 +270,16 @@ export class Screen {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.fillText(String(me.num), w / 2, 35);
+    // physical size this screen is assumed to have: should match the real screen
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillText(`this screen: ${Math.round(w / this.view.scale)} × ${Math.round(h / this.view.scale)} mm`, w / 2, 70, w - 24);
     if (!this.pts.size) {
       ctx.font = '14px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(0,0,0,.6)';
       ctx.fillRect(0, h / 2 - 30, w, 60);
       ctx.fillStyle = '#fff';
       ctx.fillText('Drag so the lines continue straight', w / 2, h / 2 - 10, w - 24);
-      ctx.fillText('into the neighbouring screens. Pinch to resize.', w / 2, h / 2 + 10, w - 24);
+      ctx.fillText(this.allowResize ? 'into the neighbouring screens. Pinch to resize.' : 'into the neighbouring screens.', w / 2, h / 2 + 10, w - 24);
     }
   }
 
@@ -340,7 +344,7 @@ export class Screen {
       const [a, b] = g.pts, [sa, sb] = cur;
       const dw = dist(a.w, b.w), ds = dist(sa, sb);
       if (dw < 1e-6 || ds < 10) return;
-      v.scale = clamp(ds / dw, 1, 30);
+      if (this.allowResize) v.scale = clamp(ds / dw, 1, 30);
       if (this.freeRotate) v.rot = Math.atan2(b.w[1] - a.w[1], b.w[0] - a.w[0]) - Math.atan2(sb[1] - sa[1], sb[0] - sa[0]);
       const wm = mid(a.w, b.w), sm = mid(sa, sb);
       v = pin(v, sm[0], sm[1], wm[0], wm[1]);

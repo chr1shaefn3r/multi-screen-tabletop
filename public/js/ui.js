@@ -101,6 +101,10 @@ export function updateToolbar(screen, host) {
   } else if (screen.mode === 'align') {
     items = [
       btn(screen.freeRotate ? 'Rotate: on' : 'Rotate: off', () => (screen.freeRotate = !screen.freeRotate)),
+      btn(screen.allowResize ? 'Resize: on' : 'Resize: off', () => {
+        screen.allowResize = !screen.allowResize;
+        screen.dirty = true;
+      }),
       btn(screen.cardMode ? 'Card: done' : 'Card size', () => {
         screen.cardMode = !screen.cardMode;
         screen.dirty = true;

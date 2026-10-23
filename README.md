@@ -9,11 +9,13 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
 2. **Players** open the site on their devices and join with the code. Every device shows a big number and colour.
 3. **Layout** – the game master's screen shows a rectangle for every device. Drag them so they match how the
    devices lie on the table (edges snap together) and rotate the ones that lie sideways or upside down.
-4. **Align** – every screen shows the same pattern of lines and circles. On each device, drag with one finger
-   (pinch to resize) until the lines continue straight into the neighbouring screens. The gaps between
+4. **Align** – every screen shows the same pattern of lines and circles. On each device, drag until the lines
+   continue straight into the neighbouring screens. The gaps between
    screens (bezels) are handled naturally: the picture simply continues "behind" them.
+   Each screen shows the size it is assumed to have (e.g. "65 × 145 mm"); it should match the real screen.
    *Card size* lets you match a bank card outline to set the exact physical size of a screen.
-   *Rotate* allows small twists if a device lies slightly crooked.
+   *Resize* allows changing the size with two fingers, *Rotate* allows small twists if a device lies slightly
+   crooked. Both are off by default so a stray second finger can't change them.
 5. **Play** – pick Chess, Checkers, a battle map with a 1-inch grid, a free table with dice and tokens, or upload
    an image as a map. Drag pieces, tap a die to roll it, double-tap a checkers piece to crown it.
 

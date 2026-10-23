@@ -69,6 +69,7 @@ export class LayoutEditor {
       ctx.fillText(String(d.num), cx, cy);
       ctx.font = `${Math.max(10, Math.min(13, size * 0.12))}px system-ui, sans-serif`;
       ctx.fillText(d.isHost ? 'this device' : d.connected ? d.name : 'offline', cx, cy + size * 0.32, size * 0.95);
+      ctx.fillText(`${Math.round(d.w / d.view.scale)}×${Math.round(d.h / d.view.scale)} mm`, cx, cy + size * 0.32 + 15, size * 0.95);
 
       // arrow towards the device's top edge
       const [ux, uy] = rotV(0, -1, d.view.rot);
