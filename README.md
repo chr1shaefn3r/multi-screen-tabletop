@@ -60,6 +60,16 @@ npm test
 Requires Node.js 24. Without `REDIS_URL`, an in-memory store replaces Redis. To try it with real phones,
 open `http://<your-computer-ip>:3000` on devices in the same Wi-Fi.
 
+## When devices don't connect
+
+Tap **Connection details** (the **i** button, or the button on the "Connecting…" screen; the game master
+finds it in the panel too). It shows every step live: the network addresses each device offered, each
+connection check between the two devices, and a diagnosis if it fails. **Copy** puts the log on the clipboard.
+Compare the player's log with the game master's: both sides of a join are logged.
+
+The usual cause is a Wi-Fi network that doesn't let devices talk to each other (guest networks, "AP/client
+isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVERS`.
+
 ## Tips and limits
 
 - Put all devices on the **same Wi-Fi**. Across different networks (e.g. mobile data) a TURN server is needed.
@@ -80,3 +90,4 @@ open `http://<your-computer-ip>:3000` on devices in the same Wi-Fi.
 | `public/js/layout.js` | Layout editor on the game master's device |
 | `public/js/games.js`, `draw.js` | Game setups and drawing of boards and pieces |
 | `public/js/net.js` | WebRTC connection setup and API calls |
+| `public/js/diag.js` | Connection log and the "Connection details" screen |

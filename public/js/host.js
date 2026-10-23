@@ -4,6 +4,7 @@ import { HostCore } from './core.js';
 import { Screen } from './screen.js';
 import { LayoutEditor } from './layout.js';
 import { GAMES } from './games.js';
+import { log, logError, logIceServers, showDetails } from './diag.js';
 import { $, h, getDeviceId, deviceInfo, keepAwake, toggleFullscreen, setupHud, updateToolbar } from './ui.js';
 
 const SESSION_KEY = 'tiletop-host-session';
@@ -28,6 +29,8 @@ export async function startHost(secret) {
     }
   }
   if (!code) ({ code, iceServers } = await api('create'));
+  log(`Game session ${code} is open. This device is the game master.`);
+  logIceServers(iceServers);
 
   const core = new HostCore();
   if (saved?.core) core.restore(saved.core);
@@ -75,6 +78,7 @@ export async function startHost(secret) {
       try {
         const { offers } = await api('poll', { code });
         if (offers.length) {
+          log(`${offers.length} device(s) want to join`);
           lastJoin = Date.now();
           delay = 1000;
           offers.forEach(handleOffer);
@@ -82,6 +86,7 @@ export async function startHost(secret) {
           delay = Math.min(delay * 1.25, 4000);
         }
       } catch (e) {
+        logError('Checking the server for joining devices failed: ' + e.message);
         if (e.status === 404) {
           alert('This game session has expired. Start a new one.');
           return endSession(false);
@@ -96,18 +101,27 @@ export async function startHost(secret) {
   async function setLobby(open) {
     await api('lobby', { code, open });
     lobbyOpen = open;
+    log(open ? 'Lobby opened: devices can join' : 'Lobby closed: no new devices can join');
     lastJoin = Date.now();
     renderPanel();
     if (open) pollLoop();
   }
 
+  let joinCount = 0;
   async function handleOffer({ peerId, offer }) {
-    let pc;
+    let pc, r;
+    const label = `join #${++joinCount}`;
     try {
-      const r = await accept(offer, iceServers);
+      log(`[${label}] a device sent a connection offer (request id ${peerId})`);
+      r = await accept(offer, iceServers, label);
       pc = r.pc;
       await api('answer', { code, peerId, answer: r.answer });
-      const dc = await Promise.race([r.channel, sleep(30000).then(() => Promise.reject(new Error('timeout')))]);
+      log(`[${label}] answer sent to the server, the device picks it up and then both try to connect…`);
+      const dc = await Promise.race([
+        r.channel,
+        sleep(30000).then(() => Promise.reject(new Error('the device did not connect within 30s'))),
+      ]);
+      log(`[${label}] data channel open ✓`);
       const t = transport(dc, pc);
       let deviceId = null;
       dc.addEventListener('message', (e) => {
@@ -118,16 +132,22 @@ export async function startHost(secret) {
           return;
         }
         if (deviceId) return core.handle(deviceId, m);
-        if (m?.t === 'hello' && typeof m.deviceId === 'string' && m.deviceId !== hostId) deviceId = core.connect(m, t);
+        if (m?.t === 'hello' && typeof m.deviceId === 'string' && m.deviceId !== hostId) {
+          deviceId = core.connect(m, t);
+          const d = core.devices.get(deviceId);
+          log(`[${label}] ✓ screen ${d.num} (${d.name}) joined`);
+        }
       });
       const gone = () => {
+        if (deviceId && core.devices.get(deviceId)?.transport === t) log(`[${label}] screen ${core.devices.get(deviceId).num} disconnected`);
         if (deviceId) core.disconnect(deviceId, t);
         t.close();
       };
       dc.addEventListener('close', gone);
       pc.addEventListener('connectionstatechange', () => ['failed', 'closed'].includes(pc.connectionState) && gone());
     } catch (e) {
-      console.warn('A device failed to join', e);
+      logError(`[${label}] joining failed: ${e.message}`);
+      await r?.watch.diagnose();
       pc?.close();
     }
   }
@@ -206,7 +226,7 @@ export async function startHost(secret) {
       'Add to the table',
       h('div', { class: 'grid' }, action('+ d6', () => core.addPiece('d6')), action('+ d20', () => core.addPiece('d20')), action('+ Token', () => core.addPiece('token')), action('Remove dice & tokens', () => core.clearExtras())),
     ),
-    section('Session', h('div', { class: 'grid' }, action('Fullscreen', toggleFullscreen), action('End session', () => endSession(), 'danger'))),
+    section('Session', h('div', { class: 'grid' }, action('Connection details', showDetails), action('Fullscreen', toggleFullscreen), action('End session', () => endSession(), 'danger'))),
   );
 
   // QR code (library is vendored, loaded only on the game master's page)
@@ -255,7 +275,7 @@ export async function startHost(secret) {
   });
   core.connect({ deviceId: hostId, ...deviceInfo() }, local, true);
 
-  setupHud(() => (panel.hidden ? openPanel() : (panel.hidden = true)));
+  setupHud(() => (panel.hidden ? openPanel() : (panel.hidden = true)), showDetails);
   keepAwake();
   openPanel();
   pollLoop();

@@ -1,6 +1,7 @@
 // A player's device: join with the code and become one screen of the table.
 import { join, transport, sleep } from './net.js';
 import { Screen } from './screen.js';
+import { log, logError, showDetails } from './diag.js';
 import { $, showOverlay, hideOverlay, getDeviceId, deviceInfo, keepAwake, setupHud, updateToolbar } from './ui.js';
 
 export async function startPlayer(code) {
@@ -11,17 +12,18 @@ export async function startPlayer(code) {
   let link = null;
   const screen = new Screen(canvas, (m) => link?.send(m));
   screen.onMode = () => updateToolbar(screen, null);
-  setupHud(null);
+  setupHud(null, showDetails);
   keepAwake();
 
   const leave = () => {
     location.href = '/';
   };
+  const actions = [['Connection details', showDetails], ['Cancel', leave]];
   let failures = 0;
   for (;;) {
     try {
-      showOverlay(failures ? 'Reconnecting…' : 'Joining game ' + code + '…', { actions: [['Cancel', leave]] });
-      const { pc, dc } = await join(code, (msg) => showOverlay(msg, { actions: [['Cancel', leave]] }));
+      showOverlay(failures ? 'Reconnecting…' : 'Joining game ' + code + '…', { actions });
+      const { pc, dc } = await join(code, (msg) => showOverlay(msg, { actions }));
       failures = 0;
       link = transport(dc, pc);
       const closed = new Promise((resolve) => {
@@ -38,17 +40,21 @@ export async function startPlayer(code) {
       link.send({ t: 'hello', deviceId, ...deviceInfo() });
       hideOverlay();
       await closed;
+      log('Connection to the game master lost, reconnecting');
       link.close();
       link = null;
     } catch (e) {
       failures++;
       if (e.status === 404 || e.status === 400) {
-        showOverlay(e.message, { spinner: false, actions: [['Back', leave]] });
+        logError(e.message);
+        showOverlay(e.message, { spinner: false, actions: [['Connection details', showDetails], ['Back', leave]] });
         return;
       }
       const why = e.status === 403 ? 'The lobby is closed. Ask the game master to open it.' : e.message;
-      showOverlay(why + ' Trying again…', { actions: [['Cancel', leave]] });
-      await sleep(Math.min(3000 * failures, 15000));
+      const wait = Math.min(3000 * failures, 15000);
+      logError(`Attempt ${failures} failed: ${why} Trying again in ${wait / 1000}s`);
+      showOverlay(`${why} Trying again in ${wait / 1000}s…`, { actions });
+      await sleep(wait);
     }
   }
 }

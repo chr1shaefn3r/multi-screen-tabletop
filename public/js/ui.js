@@ -72,10 +72,13 @@ export function keepAwake() {
   addEventListener('pointerdown', request);
 }
 
-// Corner buttons: fullscreen for everyone, settings for the game master.
-export function setupHud(onSettings) {
+// Corner buttons: fullscreen and connection details for everyone, settings for the game master.
+export function setupHud(onSettings, onDetails) {
   const hud = $('#hud');
-  const buttons = [h('button', { class: 'hud-btn', 'aria-label': 'Fullscreen', onclick: toggleFullscreen }, '⛶')];
+  const buttons = [
+    h('button', { class: 'hud-btn', 'aria-label': 'Fullscreen', onclick: toggleFullscreen }, '⛶'),
+    h('button', { class: 'hud-btn', 'aria-label': 'Connection details', onclick: onDetails }, 'i'),
+  ];
   if (onSettings) buttons.unshift(h('button', { class: 'hud-btn', 'aria-label': 'Game master panel', onclick: onSettings }, '⚙'));
   hud.replaceChildren(...buttons);
   hud.hidden = false;

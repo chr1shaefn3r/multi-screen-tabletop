@@ -2,6 +2,8 @@
 // The Vercel API only passes the one-time connection "offer" and "answer" between
 // them (signalling).
 
+import { log, logError, logCandidates, logIceServers, watchPeer } from './diag.js';
+
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function post(path, body, secret) {
@@ -29,15 +31,25 @@ function gathered(pc, ms = 3000) {
       resolve();
     };
     const check = () => pc.iceGatheringState === 'complete' && done();
-    const t = setTimeout(done, ms);
+    const t = setTimeout(() => {
+      log(`Still collecting network addresses after ${ms / 1000}s, continuing with what we have`);
+      done();
+    }, ms);
     pc.addEventListener('icegatheringstatechange', check);
   });
 }
 
-function opened(dc, ms) {
+function opened(dc, pc, ms, watch) {
   return new Promise((resolve, reject) => {
     if (dc.readyState === 'open') return resolve();
-    const t = setTimeout(() => reject(new Error('Could not connect to the game master. Are both devices on the same Wi-Fi?')), ms);
+    const fail = async (why) => {
+      clearTimeout(t);
+      logError(`${why} (connection state: ${pc.connectionState}, ICE: ${pc.iceConnectionState})`);
+      await watch?.diagnose();
+      reject(new Error(why + ' Tap "Connection details" to see why.'));
+    };
+    const t = setTimeout(() => fail(`No connection after ${ms / 1000}s.`), ms);
+    pc.addEventListener('connectionstatechange', () => pc.connectionState === 'failed' && fail('The devices could not reach each other.'));
     dc.addEventListener('open', () => {
       clearTimeout(t);
       resolve();
@@ -68,24 +80,44 @@ export function transport(dc, pc) {
 
 // Player side: connect to the game master of session `code`.
 export async function join(code, status) {
+  log(`Joining game ${code}: checking the code with the server`);
   const { iceServers } = await post('/api/join', { action: 'check', code });
+  log('Code is valid, lobby is open');
+  logIceServers(iceServers);
   const pc = new RTCPeerConnection({ iceServers });
+  const watch = watchPeer(pc, 'to game master');
   try {
     const dc = pc.createDataChannel('table', { ordered: true });
+    dc.addEventListener('open', () => log('Data channel open ✓'));
+    dc.addEventListener('close', () => log('Data channel closed'));
     await pc.setLocalDescription(await pc.createOffer());
+    status('Collecting network addresses…');
     await gathered(pc);
+    logCandidates('Our offer', pc.localDescription.sdp);
     const { peerId } = await post('/api/join', { action: 'offer', code, offer: desc(pc.localDescription) });
+    log(`Offer sent to the server (request id ${peerId}). Waiting for the game master's device to pick it up and answer…`);
     status('Waiting for the game master…');
-    const deadline = Date.now() + 45000;
-    let answer = null;
+    const begin = Date.now();
+    let answer = null, nextNote = 10000;
     while (!answer) {
-      if (Date.now() > deadline) throw new Error('The game master did not answer. Is their screen still on?');
+      const waited = Date.now() - begin;
+      if (waited > 45000) {
+        logError('No answer within 45s. The game master\'s page must be open, awake and with the lobby open.');
+        throw new Error('The game master did not answer. Is their screen still on?');
+      }
+      if (waited > nextNote) {
+        log(`Still no answer after ${Math.round(waited / 1000)}s`);
+        nextNote += 10000;
+      }
       await sleep(1000);
       ({ answer } = await post('/api/join', { action: 'answer', code, peerId }));
     }
-    status('Connecting…');
+    log(`Answer received after ${((Date.now() - begin) / 1000).toFixed(1)}s`);
+    logCandidates('Game master\'s answer', answer.sdp);
+    status('Connecting directly to the game master…');
+    log('Trying all address combinations (ICE checks)…');
     await pc.setRemoteDescription(answer);
-    await opened(dc, 15000);
+    await opened(dc, pc, 30000, watch);
     return { pc, dc };
   } catch (e) {
     pc.close();
@@ -94,11 +126,14 @@ export async function join(code, status) {
 }
 
 // Game master side: answer one device's offer.
-export async function accept(offer, iceServers) {
+export async function accept(offer, iceServers, label) {
+  logCandidates(`[${label}] offer`, offer.sdp);
   const pc = new RTCPeerConnection({ iceServers });
+  const watch = watchPeer(pc, label);
   const channel = new Promise((resolve) => (pc.ondatachannel = (e) => resolve(e.channel)));
   await pc.setRemoteDescription(offer);
   await pc.setLocalDescription(await pc.createAnswer());
   await gathered(pc);
-  return { pc, answer: desc(pc.localDescription), channel };
+  logCandidates(`[${label}] our answer`, pc.localDescription.sdp);
+  return { pc, answer: desc(pc.localDescription), channel, watch };
 }
