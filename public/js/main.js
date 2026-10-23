@@ -1,10 +1,10 @@
 import { startHost } from './host.js';
 import { startPlayer } from './player.js';
-import { $ } from './ui.js';
+import { $, formatCode } from './ui.js';
 
 const SECRET_KEY = 'tiletop-host-secret';
-const normalize = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-const isCode = (s) => /^[A-HJ-NP-Z2-9]{6}$/.test(s);
+const normalize = (s) => String(s || '').replace(/\D/g, '');
+const isCode = (s) => /^\d{8}$/.test(s);
 
 function savedSecret() {
   try {
@@ -46,12 +46,12 @@ function init() {
   if (sessionStorage.getItem('tiletop-host-session') && savedSecret()) return host(savedSecret());
 
   $('#home').hidden = false;
-  $('#code').addEventListener('input', (e) => (e.target.value = normalize(e.target.value).slice(0, 6)));
+  $('#code').addEventListener('input', (e) => (e.target.value = formatCode(normalize(e.target.value).slice(0, 8))));
   $('#joinForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const code = normalize($('#code').value);
     if (!isCode(code)) {
-      $('#joinError').textContent = 'Codes have 6 letters and digits, e.g. K7RX2M.';
+      $('#joinError').textContent = 'Codes have 8 digits, e.g. 4815 2342.';
       return;
     }
     history.replaceState(null, '', '#' + code); // a reload rejoins the same game

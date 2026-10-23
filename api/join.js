@@ -10,7 +10,7 @@ export default handler('join', async (req, body, ctx) => {
   const store = getStore();
   const ip = clientIp(req);
   const { action, code } = body;
-  if (!validCode(code)) throw new HttpError(400, 'That code does not look right (6 letters and digits).');
+  if (!validCode(code)) throw new HttpError(400, 'That code does not look right (it has 8 digits).');
 
   if (action === 'answer') {
     // Several phones on the same Wi-Fi share one IP, so this limit is generous.

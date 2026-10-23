@@ -40,7 +40,7 @@ test('join handshake through REDIS_URL', { skip: !hasRedis && 'redis-server not 
   await call(host, { action: 'answer', code, peerId: offered.peerId, answer: sdp('answer') }, 'test-secret-123');
   const got = await call(join, { action: 'answer', code, peerId: offered.peerId });
   assert.equal(got.body.answer.type, 'answer');
-  assert.equal((await call(join, { action: 'check', code: 'ABCDEF' })).status, 404);
+  assert.equal((await call(join, { action: 'check', code: '12345678' })).status, 404);
 
   // survives a dropped connection
   globalThis.__tiletopRedis.client.destroy();

@@ -23,7 +23,7 @@
 
     <form id="joinForm" class="card">
       <label for="code">Game code</label>
-      <input id="code" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="6" placeholder="K7RX2M">
+      <input id="code" inputmode="numeric" pattern="[0-9 ]*" enterkeyhint="go" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="9" placeholder="4815 2342">
       <button type="submit" class="primary">Join game</button>
       <p class="error" id="joinError" role="alert"></p>
     </form>
@@ -39,7 +39,7 @@
     </details>
 
     <ol class="howto">
-      <li>The game master opens a table and gets a 6-character code.</li>
+      <li>The game master opens a table and gets an 8-digit code.</li>
       <li>Everyone else opens this page and joins with the code. Use the same Wi-Fi.</li>
       <li>Lay the devices next to each other and swipe in one quick line from the game master's screen across onto the next screens. They line up by themselves.</li>
       <li>Play chess on the big board. To move a piece to another screen, tap it and then tap the target square.</li>

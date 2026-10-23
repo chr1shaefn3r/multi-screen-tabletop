@@ -4,11 +4,11 @@ import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import { getStore } from '../lib/store.js';
 import { handler, HttpError, clientIp, describeSdp, iceServers, validCode, validDesc, validPeer, SESSION_TTL } from '../lib/http.js';
 
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
 const MAX_FAILS = 10; // wrong passwords per IP per hour
 
 const sha = (s) => createHash('sha256').update(String(s)).digest();
-const newCode = () => Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
+// 8 digits: typed on the phone's number pad; 100 million codes, guessing is rate limited
+const newCode = () => String(randomInt(100_000_000)).padStart(8, '0');
 // ICE server list for the log, without logins.
 const describeIce = () => iceServers().map((s) => [].concat(s.urls).join(',') + (s.username ? ' (with login)' : '')).join('; ') || 'none';
 const notFound = () => new HttpError(404, 'This game session has expired.');

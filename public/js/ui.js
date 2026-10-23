@@ -2,6 +2,9 @@
 
 export const $ = (s, root = document) => root.querySelector(s);
 
+// Game codes are 8 digits, shown in two groups: 48152342 -> 4815 2342
+export const formatCode = (s) => String(s).replace(/^(\d{4})(\d)/, '$1 $2');
+
 export function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(props || {})) {

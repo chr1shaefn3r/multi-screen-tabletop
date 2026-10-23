@@ -2,7 +2,7 @@
 import { join, transport, sleep } from './net.js';
 import { Screen } from './screen.js';
 import { log, logError, showDetails } from './diag.js';
-import { $, showOverlay, hideOverlay, getDeviceId, deviceInfo, keepAwake, guardAgainstBack, setupHud, updateToolbar } from './ui.js';
+import { $, formatCode, showOverlay, hideOverlay, getDeviceId, deviceInfo, keepAwake, guardAgainstBack, setupHud, updateToolbar } from './ui.js';
 
 export async function startPlayer(code) {
   $('#home').hidden = true;
@@ -27,7 +27,7 @@ export async function startPlayer(code) {
   let failures = 0;
   for (;;) {
     try {
-      showOverlay(failures ? 'Reconnecting…' : 'Joining game ' + code + '…', { actions });
+      showOverlay(failures ? 'Reconnecting…' : 'Joining game ' + formatCode(code) + '…', { actions });
       const { pc, dc } = await join(code, (msg) => showOverlay(msg, { actions }));
       failures = 0;
       link = transport(dc, pc);

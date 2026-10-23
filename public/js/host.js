@@ -4,7 +4,7 @@ import { HostCore } from './core.js';
 import { Screen } from './screen.js';
 import { LayoutEditor } from './layout.js';
 import { log, logError, logIceServers, showDetails } from './diag.js';
-import { $, h, getDeviceId, deviceInfo, keepAwake, guardAgainstBack, toggleFullscreen, setupHud, updateToolbar } from './ui.js';
+import { $, h, formatCode, getDeviceId, deviceInfo, keepAwake, guardAgainstBack, toggleFullscreen, setupHud, updateToolbar } from './ui.js';
 
 const SESSION_KEY = 'tiletop-host-session';
 const LOBBY_IDLE_MS = 10 * 60 * 1000; // stop polling the server when nobody joined for this long
@@ -23,7 +23,7 @@ export async function startHost(secret) {
       ({ iceServers } = await api('resume', { code: saved.code }));
       code = saved.code;
     } catch (e) {
-      if (e.status !== 404) throw e;
+      if (e.status !== 404 && e.status !== 400) throw e; // expired, or saved in an older code format
       saved = null;
     }
   }
@@ -203,7 +203,7 @@ export async function startHost(secret) {
     h('header', {}, h('strong', {}, 'Game master'), h('button', { class: 'icon', 'aria-label': 'Close', onclick: () => (panel.hidden = true) }, '✕')),
     section(
       'Join code',
-      h('div', { class: 'join' }, h('div', { class: 'code' }, code), h('img', { id: 'qr', alt: 'QR code to join' })),
+      h('div', { class: 'join' }, h('div', { class: 'code' }, formatCode(code)), h('img', { id: 'qr', alt: 'QR code to join' })),
       h('p', { class: 'muted' }, 'Others open ', h('a', { href: joinUrl, target: '_blank', rel: 'noopener' }, location.host), ' and type the code, or scan the QR code.'),
       h('div', { class: 'row' }, h('span', { id: 'lobbyState' }), h('button', { id: 'lobbyBtn', onclick: () => setLobby(!lobbyOpen).catch((e) => alert(e.message)) })),
     ),

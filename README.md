@@ -5,7 +5,7 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
 
 ## How a game works
 
-1. **Game master** opens the site, enters the host password and gets a 6-character code (plus a QR code).
+1. **Game master** opens the site, enters the host password and gets an 8-digit code (plus a QR code).
 2. **Players** open the site on their devices and join with the code. Every device shows a big number and colour.
 3. **Align** – lay the devices next to each other. Every screen shows the same pattern of lines and circles.
    Swipe with one finger in one quick, straight line from the game master's screen across the gap onto a
@@ -61,7 +61,7 @@ Optional: `ICE_SERVERS` (JSON) to add a TURN server if devices can't connect dir
 ## Abuse protection
 
 - Only someone with `HOST_SECRET` can open a table. After 10 wrong passwords an IP is locked out for an hour.
-- Joining needs a valid code (32⁶ ≈ 1 billion combinations) and is rate limited per IP.
+- Joining needs a valid 8-digit code (100 million combinations) and is rate limited per IP.
 - Codes expire after 6 hours without activity; at most 16 devices can wait to join at once; payloads are size-checked.
 - The game master's lobby closes by itself after 10 minutes without new devices (re-open it in the panel),
   so an idle game doesn't keep using serverless calls.
@@ -88,10 +88,10 @@ Compare the player's log with the game master's: both sides of a join are logged
 The server logs (Vercel → project → **Logs**) show the server's part of every join, one line per request:
 
 ```
-[tiletop] join/offer code=K7RX2M from=#3fa2 → 200 in 41ms | stored offer peer=UhSh3x… (1 waiting for the game master), offer has 2 address(es): host udp ×1 (mDNS), srflx udp ×1
-[tiletop] host/poll code=K7RX2M from=#3fa2 → 200 in 12ms | handed offer peer=UhSh3x… to the game master (it waited 1.3s)
-[tiletop] host/answer code=K7RX2M from=#3fa2 → 200 in 9ms | stored answer for peer=UhSh3x…, answer has 2 address(es): …
-[tiletop] join/answer code=K7RX2M from=#3fa2 → 200 in 8ms | device picked up the answer for peer=UhSh3x… Server part done, the devices now connect directly.
+[tiletop] join/offer code=48152342 from=#3fa2 → 200 in 41ms | stored offer peer=UhSh3x… (1 waiting for the game master), offer has 2 address(es): host udp ×1 (mDNS), srflx udp ×1
+[tiletop] host/poll code=48152342 from=#3fa2 → 200 in 12ms | handed offer peer=UhSh3x… to the game master (it waited 1.3s)
+[tiletop] host/answer code=48152342 from=#3fa2 → 200 in 9ms | stored answer for peer=UhSh3x…, answer has 2 address(es): …
+[tiletop] join/answer code=48152342 from=#3fa2 → 200 in 8ms | device picked up the answer for peer=UhSh3x… Server part done, the devices now connect directly.
 ```
 
 `from=` is an anonymous tag of the IP address (devices on the same Wi-Fi share one). Errors are logged as warnings

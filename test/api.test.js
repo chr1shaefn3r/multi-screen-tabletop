@@ -27,7 +27,7 @@ const asHost = (body) => call(host, body, { auth: 'test-secret-123' });
 
 test('full join handshake', async () => {
   const { body: created } = await asHost({ action: 'create' });
-  assert.match(created.code, /^[A-HJ-NP-Z2-9]{6}$/);
+  assert.match(created.code, /^\d{8}$/);
   const code = created.code;
 
   const check = await call(join, { action: 'check', code });
@@ -63,8 +63,8 @@ test('wrong passwords get locked out', async () => {
 });
 
 test('unknown codes and closed lobbies are refused', async () => {
-  assert.equal((await call(join, { action: 'check', code: 'ABCDEF' })).status, 404);
-  assert.equal((await call(join, { action: 'check', code: 'bad' })).status, 400);
+  assert.equal((await call(join, { action: 'check', code: '12345678' })).status, 404);
+  assert.equal((await call(join, { action: 'check', code: 'K7RX2M' })).status, 400);
   const { code } = (await asHost({ action: 'create' })).body;
   await asHost({ action: 'lobby', code, open: false });
   assert.equal((await call(join, { action: 'check', code })).status, 403);
@@ -81,7 +81,7 @@ test('ended sessions are gone', async () => {
 
 test('join attempts are rate limited per IP', async () => {
   let last;
-  for (let i = 0; i < 41; i++) last = await call(join, { action: 'check', code: 'ABCDEF' }, { from: '9.9.9.9' });
+  for (let i = 0; i < 41; i++) last = await call(join, { action: 'check', code: '12345678' }, { from: '9.9.9.9' });
   assert.equal(last.status, 429);
 });
 
