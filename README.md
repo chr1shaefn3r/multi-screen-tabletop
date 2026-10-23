@@ -24,16 +24,39 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
    (*Resize* and *Card size*, to match a bank card outline, are there too), or use **Manual layout**
    on the game master's device to arrange rectangles. Each screen shows the size it is assumed to have
    (e.g. "65 × 145 mm"); it should roughly match the real screen.
-4. **Play** – a chess board appears in the middle of all screens. Three ways to move a piece:
-   - **Drag** it on one screen; it snaps to the squares.
-   - **Tap** it (it lights up on all screens), then **tap the target square**, on any screen.
-   - **Drag it off the screen edge**: it waits at the edge, highlighted, and the next touch on the neighbouring
-     screen picks it up and it follows that finger.
+4. **Play** – the game master picks a game in the panel; the board appears in the middle of all screens.
 
-   Tapping a highlighted piece again, or touching beside the board, puts it back. Drop a piece on an opposing
-   piece to capture it: captured black pieces line up above the board, white ones below. A piece dropped off
-   the board is removed the same way, and dragging a captured piece back onto the board returns it to the game.
-   Moves are not checked against the chess rules.
+### Chess
+
+Three ways to move a piece:
+- **Drag** it on one screen; it snaps to the squares.
+- **Tap** it (it lights up on all screens), then **tap the target square**, on any screen.
+- **Drag it off the screen edge**: it waits at the edge, highlighted, and the next touch on the neighbouring
+  screen picks it up and it follows that finger.
+
+Tapping a highlighted piece again, or touching beside the board, puts it back. Drop a piece on an opposing
+piece to capture it: captured black pieces line up above the board, white ones below. A piece dropped off
+the board is removed the same way, and dragging a captured piece back onto the board returns it to the game.
+Moves are not checked against the chess rules.
+
+### Mensch ärgere Dich nicht
+
+The game master picks the colours that play (yellow, green, red, blue). The die lies next to the corner of
+the player whose turn it is: tap it, then tap one of the highlighted pieces (or its target field). The rules
+are checked automatically:
+
+1. 2–4 players, 4 pieces each, all start on their B fields; turns go clockwise.
+2. A 6 brings a piece onto the own start field A. If pieces are waiting on B and A is not blocked by an own
+   piece, bringing one out is mandatory. A 6 always gives another roll.
+3. While pieces are waiting on B, a piece on the own start field must move off it if it can.
+4. With no piece that could move (all on B, or the rest stuck in the goal): up to 3 tries to roll a 6.
+5. A piece moves exactly the number rolled. Jumping over pieces is allowed; landing on an own piece is not.
+   Landing on an opponent captures it: it goes back to its B fields.
+6. After a full lap a piece enters its 4 goal fields: it needs the exact number and may not jump over own
+   pieces inside the goal.
+7. No legal move: the turn passes. Whoever has all 4 pieces home finishes; the others play on for places.
+
+Not used (common variants): having to capture, starting with a piece already on A, jumping inside the goal.
 
 ## How the devices connect
 
@@ -124,7 +147,9 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 | `public/js/screen.js` | Draws one device's part of the table and handles touch (align gestures, dragging) |
 | `public/js/swipe.js` | Automatic alignment from swipes across screens |
 | `public/js/layout.js` | Manual layout editor on the game master's device |
-| `public/js/games.js`, `draw.js` | Chess setup, captures, and drawing of the board and pieces |
+| `public/js/games/chess.js` | Chess: setup, captures and the rows of captured pieces |
+| `public/js/games/mensch-aerger-dich-nicht.js` | Mensch ärgere Dich nicht: the complete rules and the board layout |
+| `public/js/draw.js` | Drawing of the boards, pieces and the die |
 | `public/js/net.js` | WebRTC connection setup and API calls |
 | `public/js/diag.js` | Connection log and the "Connection details" screen |
 

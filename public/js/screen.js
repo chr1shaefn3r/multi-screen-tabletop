@@ -1,7 +1,8 @@
 // One physical screen: draws its slice of the shared table and handles touch.
 // Used by every device, including the game master's.
 import { toWorld, corners, bounds, pin, dist, mid, clamp } from './geom.js';
-import { drawBoard, drawPiece, hitTest, loadPieces } from './draw.js';
+import { drawBoard, drawPiece, hitTest, loadPieces, drawMadn, madnAnimMs } from './draw.js';
+import * as madn from './games/mensch-aerger-dich-nicht.js';
 import { EDGE_PX, MIN_SPEED } from './swipe.js';
 import { log } from './diag.js';
 
@@ -106,7 +107,19 @@ export class Screen {
         this.state = m.state;
         this.drags.clear();
         this.pending.clear();
+        this.madnAnim = this.rollStart = undefined;
         break;
+      case 'madn': {
+        // Mensch ärgere Dich nicht: new game state after a roll or a move
+        const prev = this.state.madn, g = m.game, now = performance.now();
+        if (prev && g.rollSeq !== prev.rollSeq) this.rollStart = now;
+        if (prev && g.moveSeq !== prev.moveSeq && g.lastMove) this.madnAnim = { move: g.lastMove, start: now };
+        if (g.events.length && (!prev || g.rollSeq !== prev.rollSeq || g.moveSeq !== prev.moveSeq)) {
+          this.toast = { text: g.events.join(' '), until: now + 2500 + g.events.join(' ').length * 40 };
+        }
+        this.state.madn = g;
+        break;
+      }
       case 'piece': {
         const p = m.p;
         const old = this.state.pieces[p.id];
@@ -152,6 +165,8 @@ export class Screen {
     if (this.trail && now > this.trail.until) this.trail = null;
     if (this.toast && now > this.toast.until) this.toast = null;
     if (this.trail || this.toast) this.dirty = true;
+    if (this.rollStart !== undefined && now - this.rollStart < 650) this.dirty = true;
+    if (this.madnAnim && now - this.madnAnim.start < madnAnimMs(madn, this.madnAnim.move)) this.dirty = true;
     for (const [id, [x, y]] of this.pending) this.send({ t: 'drag', id, x, y });
     this.pending.clear();
     if (this.editor?.dirty) this.dirty = true;
@@ -177,16 +192,23 @@ export class Screen {
     if (align) {
       this.drawPattern(ctx, px);
     } else {
-      drawBoard(ctx, this.state.board, px);
-      const list = Object.values(this.state.pieces).sort((a, b) => a.z - b.z);
-      for (const p of list) drawPiece(ctx, p, v.scale * this.dpr);
+      if (this.state.board.type === 'madn') {
+        drawMadn(ctx, this.state.board, this.state.madn, madn, performance.now(), this.madnAnim, this.rollStart);
+      } else {
+        drawBoard(ctx, this.state.board, px);
+        const list = Object.values(this.state.pieces).sort((a, b) => a.z - b.z);
+        for (const p of list) drawPiece(ctx, p, v.scale * this.dpr);
+      }
     }
     ctx.restore();
     if (align) this.drawAlignHud(ctx, w, h);
     else if (this.toast) {
+      // near the top, so it doesn't cover the middle of the board
       const font = 'bold 15px system-ui, sans-serif';
-      box(ctx, w, h / 2, wrapText(ctx, this.toast.text, w / 2, 0, w - 40, 20, font, null).length);
-      wrapText(ctx, this.toast.text, w / 2, h / 2, w - 40, 20, font, '#fff', true);
+      const lines = wrapText(ctx, this.toast.text, w / 2, 0, w - 40, 20, font, null).length;
+      const y = 70 + lines * 10;
+      box(ctx, w, y, lines);
+      wrapText(ctx, this.toast.text, w / 2, y, w - 40, 20, font, '#fff', true);
     }
   }
 
@@ -441,7 +463,37 @@ export class Screen {
   // --- Play: drag pieces on a screen, or tap a piece and then its target square (works across
   // screens). A piece dragged off the screen edge waits there; the next touch on a square of any
   // screen moves it there. Drops are checked by the game master (captures etc.).
+  // Mensch ärgere Dich nicht: tap the die (next to the current player's corner) to roll, then a
+  // highlighted piece (or its target field) to move.
+  madnPointer(e) {
+    if (e.type !== 'pointerdown') return;
+    const g = this.state.madn, b = this.state.board;
+    if (!g || g.phase === 'over') return;
+    const [wx, wy] = toWorld(this.view, e.clientX, e.clientY);
+    const at = ([c, r]) => [b.x + (c + 0.5) * b.cell, b.y + (r + 0.5) * b.cell];
+    const near = (cell, r = 0.6) => {
+      const [x, y] = at(cell);
+      return Math.hypot(wx - x, wy - y) < b.cell * r;
+    };
+    const hint = (text) => (this.toast = { text, until: performance.now() + 2500 });
+    const spot = madn.dieSpot(g.turn);
+    if (Math.hypot(wx - (b.x + spot[0] * b.cell), wy - (b.y + spot[1] * b.cell)) < b.cell * 1.1) {
+      if (g.phase === 'roll') this.send({ t: 'madn', a: 'roll' });
+      else hint('Move a highlighted piece first.');
+    } else if (g.phase === 'move') {
+      const moves = madn.legalMoves(g);
+      const m = moves.find((x) => near(madn.cellOf(g.turn, x.i, g.pieces[g.turn][x.i])))
+        || moves.find((x) => near(madn.cellOf(g.turn, x.i, x.to))); // or its target (moves sharing one are equivalent waiting pieces)
+      if (m) this.send({ t: 'madn', a: 'move', i: m.i });
+      else if (moves.length) hint(`${madn.NAMES[g.turn]}: tap one of the highlighted pieces.`);
+    } else {
+      hint(`${madn.NAMES[g.turn]}: tap the die next to your corner.`);
+    }
+    this.dirty = true;
+  }
+
   playPointer(e) {
+    if (this.state.board.type === 'madn') return this.madnPointer(e);
     const id = e.pointerId;
     const pieces = this.state.pieces;
     if (e.type === 'pointerdown') {

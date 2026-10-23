@@ -2,7 +2,8 @@
 // where they lie on the table, and the game state. Every device (including the
 // game master's own screen) talks to it through a "transport" with send()/close().
 import { bounds, corners, pointInPoly, sanitizeView, QUARTER } from './geom.js';
-import { setupChess, dropPiece } from './games.js';
+import { setupChess, dropPiece } from './games/chess.js';
+import * as madn from './games/mensch-aerger-dich-nicht.js';
 import { SwipeAligner } from './swipe.js';
 
 const COLORS = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#0aa5c0', '#f032e6', '#7a9a01', '#9a6324', '#469990'];
@@ -213,6 +214,23 @@ export class HostCore {
       case 'cancel': // touched beside the board while a piece was selected
         this.clearSelection();
         break;
+      case 'madn': {
+        // Mensch ärgere Dich nicht: any screen may roll the die or move a piece of the current colour;
+        // the rules module decides what is allowed
+        const g = this.state.madn;
+        if (this.mode !== 'play' || !g) break;
+        const die = 1 + (crypto.getRandomValues(new Uint32Array(1))[0] % 6);
+        const next = m.a === 'roll' ? madn.roll(g, die) : m.a === 'move' ? madn.move(g, Number(m.i)) : null;
+        if (!next) {
+          this.send(d, { t: 'madn', game: g }); // not allowed (e.g. someone was quicker): resync this screen
+          break;
+        }
+        this.state.madn = next;
+        this.broadcast({ t: 'madn', game: next });
+        for (const e of next.events) this.log(`Mensch ärgere Dich nicht: ${e}`);
+        this.emit();
+        break;
+      }
     }
   }
 
@@ -260,12 +278,23 @@ export class HostCore {
   }
 
   // A fresh chess game, centred on the screens that are connected right now.
-  newGame() {
-    this.state = setupChess(this.union());
+  // A fresh game, centred on the screens that are connected right now.
+  // type 'chess', or 'madn' (Mensch ärgere Dich nicht) with opts.players = colours taking part.
+  newGame(type = 'chess', opts = {}) {
+    const u = this.union();
+    let tip;
+    if (type === 'madn') {
+      const size = Math.min(u.w, u.h) * 0.96;
+      const board = { type: 'madn', x: u.cx - size / 2, y: u.cy - size / 2, size, cell: size / 11 };
+      this.state = { board, pieces: {}, madn: madn.newGame(opts.players?.length >= 2 ? opts.players : madn.COLORS) };
+      tip = this.state.madn.events.join(' ');
+    } else {
+      this.state = setupChess(u);
+      tip = 'Tip: tap a piece, then tap where it should go: that works across screens. Or drag it off the edge and keep going on the next screen.';
+    }
     this.z = 1;
     this.grabbedFrom.clear();
     this.broadcast({ t: 'state', state: this.state });
-    const tip = 'Tip: tap a piece, then tap where it should go: that works across screens. Or drag it off the edge and keep going on the next screen.';
     this.broadcast({ t: 'status', toast: tip });
     this.emit();
   }
@@ -284,7 +313,7 @@ export class HostCore {
     if (!s || !Array.isArray(s.devices)) return;
     this.nextNum = s.nextNum || 1;
     this.mode = s.mode || 'align';
-    if (['chess', 'none'].includes(s.state?.board?.type)) this.state = s.state;
+    if (['chess', 'madn', 'none'].includes(s.state?.board?.type)) this.state = s.state;
     for (const d of s.devices) this.devices.set(d.id, { ...d, connected: false, transport: null });
     this.z = Math.max(1, ...Object.values(this.state.pieces).map((p) => p.z || 0));
   }

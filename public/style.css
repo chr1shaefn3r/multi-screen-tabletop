@@ -200,3 +200,7 @@ button.icon { background: transparent; border: 0; padding: 4px 8px; font-size: 1
   user-select: text;
   -webkit-user-select: text;
 }
+.chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; margin-bottom: 8px; }
+.chip { padding: 8px 4px; font-size: 0.85rem; border: 2px solid var(--chip); background: transparent; color: var(--text); }
+.chip.on { background: var(--chip); color: #fff; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+.grid .wide { grid-column: 1 / -1; }

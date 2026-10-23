@@ -4,6 +4,7 @@ import { HostCore } from './core.js';
 import { Screen } from './screen.js';
 import { LayoutEditor } from './layout.js';
 import { log, logError, logIceServers, showDetails } from './diag.js';
+import * as madn from './games/mensch-aerger-dich-nicht.js';
 import { $, h, formatCode, getDeviceId, deviceInfo, keepAwake, guardAgainstBack, toggleFullscreen, setupHud, updateToolbar } from './ui.js';
 
 const SESSION_KEY = 'tiletop-host-session';
@@ -58,7 +59,7 @@ export async function startHost(secret) {
   screen.onMode = (m) => {
     updateToolbar(screen, host);
     if (m === 'play' && core.state.board.type === 'none') {
-      core.newGame(); // chess is the only game: start it right away
+      core.newGame('chess'); // no game yet: start with chess
       logGeometry('chess');
     }
     renderPanel();
@@ -187,14 +188,17 @@ export async function startHost(secret) {
     const u = core.union();
     log(`    all screens together: ${r(u.l)}…${r(u.r)} × ${r(u.t)}…${r(u.b)} (${r(u.w)}×${r(u.h)} mm)`);
     const b = core.state.board;
-    if (b.type !== 'none') log(`    board: ${r(b.x)}…${r(b.x + b.w)} × ${r(b.y)}…${r(b.y + b.h)}`);
+    const bw = b.w ?? b.size, bh = b.h ?? b.size;
+    if (b.type !== 'none') log(`    board: ${r(b.x)}…${r(b.x + bw)} × ${r(b.y)}…${r(b.y + bh)}`);
   }
 
-  const startGame = () => {
-    const playing = Object.keys(core.state.pieces).length > 0;
-    if (playing && !confirm('Start a new chess game? The current game is lost.')) return;
-    core.newGame();
-    logGeometry('chess');
+  const madnColors = new Set(madn.COLORS);
+  const startGame = (type) => {
+    if (type === 'madn' && madnColors.size < 2) return alert('Pick at least 2 colours.');
+    const playing = Object.keys(core.state.pieces).length > 0 || (core.state.madn && core.state.madn.phase !== 'over');
+    if (playing && !confirm('Start a new game? The current game is lost.')) return;
+    core.newGame(type, { players: [...madnColors] });
+    logGeometry(type === 'madn' ? 'Mensch ärgere Dich nicht' : 'chess');
     if (core.mode !== 'play') setMode('play');
     panel.hidden = true;
   };
@@ -214,9 +218,26 @@ export async function startHost(secret) {
       h('p', { class: 'muted' }, 'Align: swipe from your screen across each gap onto the next screen, twice per gap. Play: chess starts. Manual layout and the drag tool are there if swiping does not work out.'),
     ),
     section(
-      'Chess',
-      h('div', { class: 'grid' }, action('New chess game', startGame, 'primary')),
-      h('p', { class: 'muted' }, 'Drop a piece on an opposing piece to capture it. Captured black pieces go above the board, white ones below. Drag a captured piece back onto the board to undo.'),
+      'New game',
+      h('div', { class: 'grid' }, action('Chess', () => startGame('chess'), 'primary')),
+      h('p', { class: 'muted' }, 'Chess: tap a piece, then its target square, or drag it. Drop it on an opposing piece to capture; captured pieces line up beside the board. Moves are not checked.'),
+      h(
+        'div',
+        { class: 'chips' },
+        ...madn.COLORS.map((c) => {
+          const chip = h('button', { class: 'chip on', 'aria-pressed': 'true' }, madn.NAMES[c]);
+          chip.style.setProperty('--chip', madn.COLOR_HEX[c]);
+          chip.addEventListener('click', () => {
+            if (madnColors.has(c)) madnColors.delete(c);
+            else madnColors.add(c);
+            chip.classList.toggle('on', madnColors.has(c));
+            chip.setAttribute('aria-pressed', String(madnColors.has(c)));
+          });
+          return chip;
+        }),
+      ),
+      h('div', { class: 'grid' }, action('Mensch ärgere Dich nicht', () => startGame('madn'), 'primary wide')),
+      h('p', { class: 'muted' }, 'Mensch ärgere Dich nicht: choose the colours that play above. Tap the die next to your corner, then a highlighted piece. The rules are checked automatically.'),
     ),
     section('Session', h('div', { class: 'grid' }, action('Connection details', showDetails), action('Fullscreen', toggleFullscreen), action('End session', () => endSession(), 'danger'))),
   );
