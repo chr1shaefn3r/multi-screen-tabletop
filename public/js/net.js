@@ -1,6 +1,6 @@
-// Networking. Vercel can't hold WebSocket connections, so devices talk to the game
-// master directly over WebRTC data channels. The Vercel API only passes the one-time
-// connection "offer" and "answer" between them (signalling).
+// Networking. Devices talk to the game master directly over WebRTC data channels.
+// The Vercel API only passes the one-time connection "offer" and "answer" between
+// them (signalling).
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

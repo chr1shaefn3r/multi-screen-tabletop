@@ -17,11 +17,10 @@ A piece dragged to the edge of one phone continues on the next one, lined up to 
 5. **Play** – pick Chess, Checkers, a battle map with a 1-inch grid, a free table with dice and tokens, or upload
    an image as a map. Drag pieces, tap a die to roll it, double-tap a checkers piece to crown it.
 
-## Why WebRTC instead of WebSockets
+## How the devices connect
 
-Vercel's serverless functions can't keep WebSocket connections open, so a WebSocket server can't run there.
-Instead, the devices talk **directly to the game master's device** over WebRTC data channels (fast and free,
-nothing goes through Vercel during a game). Vercel only does the short handshake when a device joins:
+The devices talk **directly to the game master's device** over WebRTC data channels: fast, free, and
+nothing goes through Vercel during a game. Vercel only does the short handshake when a device joins:
 
 ```
 player ──offer──▶ /api/join ──▶ Redis ◀── /api/host (poll) ◀── game master
@@ -57,7 +56,7 @@ npm run dev          # http://localhost:3000, host password "devsecret"
 npm test
 ```
 
-No dependencies to install. Locally an in-memory store replaces Redis. To try it with real phones,
+Requires Node.js 24. No dependencies to install. Locally an in-memory store replaces Redis. To try it with real phones,
 open `http://<your-computer-ip>:3000` on devices in the same Wi-Fi.
 
 ## Tips and limits
