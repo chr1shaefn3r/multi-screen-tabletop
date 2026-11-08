@@ -1,12 +1,17 @@
 // One physical screen: draws its slice of the shared table and handles touch.
 // Used by every device, including the game master's.
-import { toWorld, corners, bounds, pin, dist, mid, clamp } from './geom.js';
+import { toWorld, corners, bounds, pin, dist, mid, clamp, followRotation } from './geom.js';
 import { drawBoard, drawPiece, hitTest, loadPieces, drawMadn, madnAnimMs, MADN_RESULT_MS, MADN_ROLL_MS } from './draw.js';
 import * as madn from './games/mensch-aerger-dich-nicht.js';
 import { EDGE_PX, MIN_SPEED } from './swipe.js';
-import { log } from './diag.js';
+import { log, logError } from './diag.js';
 
 const CARD = [85.6, 53.98]; // ISO/IEC 7810 ID-1 (bank card) in mm
+// How far the browser has turned its content from the device's natural orientation (degrees).
+const orientationAngle = () => {
+  const a = Number(window.screen?.orientation?.angle ?? window.orientation ?? 0);
+  return (((Number.isFinite(a) ? a : 0) % 360) + 360) % 360;
+};
 const EDGE_RELEASE = 24; // px: a drag that ends this close to the screen edge slid off the screen
 
 export class Screen {
@@ -38,8 +43,10 @@ export class Screen {
     window.__screen = this; // handy for debugging from the browser console
 
     loadPieces(() => (this.dirty = true));
+    this.angle = orientationAngle();
     this.resize();
     addEventListener('resize', () => this.resize());
+    window.screen?.orientation?.addEventListener?.('change', () => this.resize());
     for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) canvas.addEventListener(t, (e) => this.pointer(e));
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     const loop = () => {
@@ -51,9 +58,26 @@ export class Screen {
 
   resize() {
     const dpr = Math.min(devicePixelRatio || 1, 3);
+    const [w0, h0] = [this.w, this.h];
     this.dpr = dpr;
     this.w = innerWidth;
     this.h = innerHeight;
+    // The browser turned between portrait and landscape (e.g. auto-rotate while the phone lies on
+    // the table). The device didn't move, so keep showing the same part of the table: turn the view
+    // with the screen. Waits until the new size has arrived (it can lag behind the angle).
+    const angle = orientationAngle();
+    if (angle !== this.angle && w0) {
+      const turned = (angle - this.angle + 360) % 360;
+      const swapped = Math.abs(this.w - h0) < 120 && Math.abs(this.h - w0) < 120;
+      if (turned === 180 || swapped) {
+        if (this.me && this.mode !== 'wait') {
+          this.view = followRotation(this.view, w0, h0, this.w, this.h, (turned * Math.PI) / 180);
+          this.send({ t: 'view', view: this.view });
+          log(`The screen turned by ${turned}° (now ${this.w}×${this.h}): view adjusted to keep showing the same part of the table`);
+        }
+        this.angle = angle;
+      }
+    }
     this.canvas.width = Math.round(this.w * dpr);
     this.canvas.height = Math.round(this.h * dpr);
     this.canvas.style.width = this.w + 'px';
@@ -207,7 +231,22 @@ export class Screen {
     if (this.editor?.dirty) this.dirty = true;
     if (!this.dirty) return;
     this.dirty = false;
-    this.draw();
+    try {
+      this.draw();
+    } catch (err) {
+      // never leave a screen silently blank: show and report what went wrong
+      const msg = `${err?.message || err}`;
+      if (msg !== this.lastError) {
+        this.lastError = msg;
+        logError(`Drawing failed: ${err?.stack || msg}`);
+        this.send({ t: 'error', msg: msg.slice(0, 300) });
+      }
+      const { ctx, w, h } = this;
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.fillStyle = '#300';
+      ctx.fillRect(0, 0, w, h);
+      wrapText(ctx, `Something went wrong on this screen: ${msg}`, w / 2, h / 2, w - 40, 20, '15px system-ui, sans-serif', '#fff', true);
+    }
   }
 
   draw() {
@@ -236,6 +275,12 @@ export class Screen {
       }
     }
     ctx.restore();
+    if (!align && !this.showsBoard()) {
+      // e.g. the screen was moved or turned after aligning: say so instead of showing an empty table
+      const text = `Screen ${this.me.num}: no part of the board is on this screen. The game master can line it up again (Align, then swipe).`;
+      box(ctx, w, h / 2, wrapText(ctx, text, w / 2, 0, w - 40, 20, '15px system-ui, sans-serif', null).length);
+      wrapText(ctx, text, w / 2, h / 2, w - 40, 20, '15px system-ui, sans-serif', '#fff', true);
+    }
     if (align) this.drawAlignHud(ctx, w, h);
     else if (this.toast) {
       // near the top, so it doesn't cover the middle of the board
@@ -245,6 +290,15 @@ export class Screen {
       box(ctx, w, y, lines);
       wrapText(ctx, this.toast.text, w / 2, y, w - 40, 20, font, '#fff', true);
     }
+  }
+
+  // Whether any part of the board (or a chess piece beside it) lies on this screen.
+  showsBoard() {
+    const b = this.state.board;
+    if (!b || b.type === 'none') return true; // no game yet: nothing to miss
+    const vb = bounds(corners(this.view, this.w, this.h));
+    const size = b.size ?? b.w, m = (b.cell || 0) * 1.5; // margin: frame and captured pieces
+    return vb.r > b.x - m && vb.l < b.x + size + m && vb.b > b.y - m && vb.t < b.y + (b.size ?? b.h) + m;
   }
 
   // Shown while the game master arranges the layout: who am I, and where is my top edge.

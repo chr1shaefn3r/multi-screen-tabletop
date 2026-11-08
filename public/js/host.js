@@ -189,7 +189,17 @@ export async function startHost(secret) {
     log(`    all screens together: ${r(u.l)}…${r(u.r)} × ${r(u.t)}…${r(u.b)} (${r(u.w)}×${r(u.h)} mm)`);
     const b = core.state.board;
     const bw = b.w ?? b.size, bh = b.h ?? b.size;
-    if (b.type !== 'none') log(`    board: ${r(b.x)}…${r(b.x + bw)} × ${r(b.y)}…${r(b.y + bh)}`);
+    if (b.type === 'none') return;
+    log(`    board: ${r(b.x)}…${r(b.x + bw)} × ${r(b.y)}…${r(b.y + bh)}`);
+    // how much of the board each screen shows (screens lie at right angles, so boxes are exact)
+    for (const d of core.connected()) {
+      const v = core.union([d]);
+      const ow = Math.max(0, Math.min(v.r, b.x + bw) - Math.max(v.l, b.x));
+      const oh = Math.max(0, Math.min(v.b, b.y + bh) - Math.max(v.t, b.y));
+      const share = Math.round((100 * ow * oh) / (bw * bh));
+      if (share > 0) log(`    screen ${d.num} shows ${share}% of the board`);
+      else logError(`    screen ${d.num} shows no part of the board: line it up again (Align, then swipe)`);
+    }
   }
 
   const madnColors = new Set(madn.COLORS);

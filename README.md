@@ -128,7 +128,10 @@ isolation"). Try a phone hotspot, or add a TURN relay server through `ICE_SERVER
 ## Tips and limits
 
 - Put all devices on the **same Wi-Fi**. Across different networks (e.g. mobile data) a TURN server is needed.
-- Turn off auto-rotate before aligning; a device that rotates changes its screen shape.
+- Turning off auto-rotate is still best. If a browser does turn between portrait and landscape while the phone
+  lies on the table, that screen adjusts itself so it keeps showing the same part of the board.
+- A screen that has no part of the board on it says so (and the game master's Connection details list how
+  much of the board every screen shows when a game starts). Line it up again with a swipe.
 - On Android phones with gesture navigation, a swipe that enters a screen at its left or right edge looks
   like the system's "back" gesture. Tiletop catches it (the game stays open, and fullscreen comes back with
   the next tap), but switching to 3-button navigation, or lowering the back gesture sensitivity, in the

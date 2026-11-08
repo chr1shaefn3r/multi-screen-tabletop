@@ -202,3 +202,20 @@ test('selecting another piece or touching beside the board unselects', () => {
   core.handle('b', { t: 'cancel' });
   assert.equal(c.selected, false);
 });
+
+test('a browser turning portrait <-> landscape keeps the screen where it lies on the table', async () => {
+  const { followRotation } = await import('../public/js/geom.js');
+  const v = { ox: 10, oy: 63, rot: -Math.PI / 2, scale: 6.3 };
+  const before = bounds(corners(v, 390, 740));
+  for (const turn of [Math.PI / 2, -Math.PI / 2]) {
+    const n = followRotation(v, 390, 740, 740, 390, turn);
+    const after = bounds(corners(n, 740, 390));
+    for (const k of ['l', 't', 'r', 'b']) close(Math.round(after[k] * 1e6) / 1e6, Math.round(before[k] * 1e6) / 1e6);
+    close(Math.cos(n.rot - (v.rot + turn)), 1);
+  }
+  // 180°: same footprint, origin moves to the opposite corner
+  const flip = followRotation(v, 390, 740, 390, 740, Math.PI);
+  const [x, y] = toWorld(flip, 390, 740);
+  close(x, v.ox);
+  close(y, v.oy);
+});

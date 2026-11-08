@@ -61,3 +61,18 @@ export function sanitizeView(v) {
 export const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 export const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// The browser turned its content by `delta` radians (portrait <-> landscape) while the device
+// itself didn't move on the table: the view that keeps the screen's footprint on the table.
+// The screen's x axis turns by `delta`; its new top-left corner is whichever old corner fits.
+export function followRotation(v, w0, h0, w1, h1, delta) {
+  const old = corners(v, w0, h0);
+  const rot = Math.atan2(Math.sin(v.rot + delta), Math.cos(v.rot + delta));
+  let best = null;
+  for (const [ox, oy] of old) {
+    const cand = { ...v, rot, ox, oy };
+    const err = corners(cand, w1, h1).reduce((sum, p) => sum + Math.min(...old.map((q) => dist(p, q))), 0);
+    if (!best || err < best.err) best = { view: cand, err };
+  }
+  return best.view;
+}

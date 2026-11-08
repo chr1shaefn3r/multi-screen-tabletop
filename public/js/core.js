@@ -147,6 +147,9 @@ export class HostCore {
         }
         break;
       }
+      case 'error': // something failed on that screen (shown there too)
+        this.log(`Screen ${d.num} (${d.name}) reported an error: ${String(m.msg).slice(0, 300)}`);
+        break;
       case 'ping': // clock sync: the device compares its clock with ours
         this.send(d, { t: 'pong', c: m.c, h: performance.now() });
         break;
